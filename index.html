@@ -9,11 +9,13 @@
       --ancho: 240px;
       --alto: 140px;
       --fondo: 100px;
+      --suelo: 800px;
     }
 
     html, body {
       margin: 0;
       height: 100%;
+      overflow: hidden;
     }
 
     body {
@@ -21,20 +23,60 @@
       align-items: center;
       justify-content: center;
       background: #f4f4f8;
-      perspective: 900px;
+      perspective: 1000px;
       touch-action: none;
+      user-select: none;
+      cursor: grab;
+    }
+    body.arrastrando { cursor: grabbing; }
+
+    /* Todo lo que gira junto: suelo, sombra y caja */
+    .escena {
+      position: relative;
+      width: 0;
+      height: 0;
+      transform-style: preserve-3d;
+    }
+
+    /* Terreno plano con cuadrícula, que se desvanece en los bordes */
+    .suelo {
+      position: absolute;
+      width: var(--suelo);
+      height: var(--suelo);
+      left: calc(var(--suelo) / -2);
+      top: calc(var(--suelo) / -2);
+      transform: translateY(calc(var(--alto) / 2)) rotateX(90deg);
+      background-color: #dcd6ee;
+      background-image:
+        linear-gradient(#c3b9e3 1px, transparent 1px),
+        linear-gradient(90deg, #c3b9e3 1px, transparent 1px);
+      background-size: 40px 40px;
+      background-position: center;
+      -webkit-mask-image: radial-gradient(circle, #000 45%, transparent 70%);
+              mask-image: radial-gradient(circle, #000 45%, transparent 70%);
+    }
+
+    /* Sombra suave debajo de la caja */
+    .sombra {
+      position: absolute;
+      width: var(--ancho);
+      height: var(--fondo);
+      left: calc(var(--ancho) / -2);
+      top: calc(var(--fondo) / -2);
+      transform: translateY(calc(var(--alto) / 2 - 1px)) rotateX(90deg) scale(1.15);
+      background: rgba(40, 20, 90, 0.35);
+      filter: blur(14px);
+      border-radius: 12px;
     }
 
     .caja {
-      position: relative;
+      position: absolute;
       width: var(--ancho);
       height: var(--alto);
+      left: calc(var(--ancho) / -2);
+      top: calc(var(--alto) / -2);
       transform-style: preserve-3d;
-      cursor: grab;
-      touch-action: none;
-      user-select: none;
     }
-    .caja.arrastrando { cursor: grabbing; }
 
     .cara {
       position: absolute;
@@ -73,33 +115,38 @@
     }
     .arriba { background: #9a80e8; transform: rotateX(90deg)  translateZ(calc(var(--alto) / 2)); }
     .abajo  { background: #4a3296; transform: rotateX(-90deg) translateZ(calc(var(--alto) / 2)); }
-
   </style>
 </head>
 <body>
-  <div class="caja">
-    <div class="cara frente"></div>
-    <div class="cara atras"></div>
-    <div class="cara derecha"></div>
-    <div class="cara izquierda"></div>
-    <div class="cara arriba"></div>
-    <div class="cara abajo"></div>
+  <div class="escena">
+    <div class="suelo"></div>
+    <div class="sombra"></div>
+    <div class="caja">
+      <div class="cara frente"></div>
+      <div class="cara atras"></div>
+      <div class="cara derecha"></div>
+      <div class="cara izquierda"></div>
+      <div class="cara arriba"></div>
+      <div class="cara abajo"></div>
+    </div>
   </div>
 
   <script>
-    const caja = document.querySelector('.caja');
-    let rotX = -20, rotY = -30;
+    const escena = document.querySelector('.escena');
+    let rotX = -25, rotY = -30;
     let arrastrando = false, ultimoX = 0, ultimoY = 0;
     let girarSolo = !matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     function dibujar() {
-      caja.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+      // No dejar que la cámara pase por debajo del suelo
+      rotX = Math.max(-85, Math.min(-5, rotX));
+      escena.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
     }
 
     // Gira solo hasta que lo toques por primera vez
     function animar() {
       if (girarSolo && !arrastrando) {
-        rotY += 0.5;
+        rotY += 0.3;
         dibujar();
       }
       requestAnimationFrame(animar);
@@ -111,7 +158,7 @@
       girarSolo = false;
       ultimoX = e.clientX;
       ultimoY = e.clientY;
-      caja.classList.add('arrastrando');
+      document.body.classList.add('arrastrando');
     });
 
     document.addEventListener('pointermove', e => {
@@ -125,7 +172,7 @@
 
     function soltar() {
       arrastrando = false;
-      caja.classList.remove('arrastrando');
+      document.body.classList.remove('arrastrando');
     }
     document.addEventListener('pointerup', soltar);
     document.addEventListener('pointercancel', soltar);
