@@ -173,7 +173,7 @@
     </div>
   </div>
 
-  <div class="ayuda">W A S D: mover el rectángulo · Flechas o arrastrar: mover la cámara · Rueda: acercar o alejar</div>
+  <div class="ayuda">W A S D: mover · Espacio: saltar · Flechas o arrastrar: mover la cámara · Rueda: acercar o alejar</div>
 
   <script>
     const mundo = document.querySelector('.mundo');
@@ -186,6 +186,8 @@
     const VELOCIDAD      = 320;   // velocidad máxima del rectángulo (píxeles por segundo)
     const ACELERACION    = 10;    // qué tan rápido arranca y frena
     const GIRO_CUERPO    = 12;    // qué tan rápido el rectángulo se voltea hacia donde camina
+    const FUERZA_SALTO   = 650;   // velocidad hacia arriba al saltar (más = salta más alto)
+    const GRAVEDAD       = 1800;  // qué tan rápido cae
     const BORDE          = 1500;  // no salir del piso
     const GIRO_FLECHAS   = 100;   // grados por segundo que gira la cámara con ← →
     const ALTURA_FLECHAS = 60;    // grados por segundo que sube o baja la cámara con ↑ ↓
@@ -211,6 +213,10 @@
     const vel = { x: 0, z: 0 };     // velocidad actual (para arrancar y frenar suave)
     const camPos = { x: 0, z: 0 };  // punto que mira la cámara (sigue al rectángulo)
     let orientacion = 0;            // hacia dónde mira la cara de adelante (en radianes)
+    let altura = 0;                 // qué tan arriba del piso está (0 = en el piso)
+    let velY = 0;                   // velocidad vertical del salto
+    const rectangulo = document.querySelector('.rectangulo');
+    const sombra = document.querySelector('.sombra');
     const teclas = new Set();
 
     const TECLAS_USADAS = [
@@ -218,6 +224,12 @@
       'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',  // mover la cámara
     ];
     document.addEventListener('keydown', e => {
+      // Espacio: saltar (solo si está en el piso, y sin repetir al mantenerla)
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (!e.repeat && altura === 0) velY = FUERZA_SALTO;
+        return;
+      }
       if (TECLAS_USADAS.includes(e.code)) {
         teclas.add(e.code);
         e.preventDefault();
@@ -274,7 +286,24 @@
       objetivo.inclinacion = limitar(objetivo.inclinacion, LIMITES.inclinacion);
     }
 
+    function saltar(dt) {
+      if (altura === 0 && velY === 0) return;
+      velY -= GRAVEDAD * dt;
+      altura += velY * dt;
+      if (altura <= 0) {   // tocó el piso
+        altura = 0;
+        velY = 0;
+      }
+    }
+
     function dibujar() {
+      rectangulo.style.transform = `translateY(${-altura}px)`;
+      // La sombra queda en el piso: más chica y suave mientras más alto salta
+      const lejos = Math.min(altura / 200, 1);
+      sombra.style.transform =
+        `translateY(-1px) rotateX(90deg) scale(${1.3 - lejos * 0.5})`;
+      sombra.style.opacity = 1 - lejos * 0.6;
+
       jugador.style.transform =
         `translate3d(${pos.x}px, 0, ${pos.z}px) rotateY(${orientacion}rad)`;
       // Mover la cámara equivale a mover el mundo al revés frente a ella.
@@ -294,6 +323,7 @@
         actual[k] = suavizar(actual[k], objetivo[k], SUAVIDAD_CAM, dt);
       }
       moverJugador(dt);
+      saltar(dt);
       dibujar();
       requestAnimationFrame(animar);
     }
