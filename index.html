@@ -109,6 +109,21 @@
       margin-top: calc(var(--alto) / -2);
     }
     .frente { background: #7b5cd6; transform: translateZ(calc(var(--fondo) / 2)); }
+
+    /* Ojos en la cara de adelante, para saber hacia dónde mira */
+    .frente::before,
+    .frente::after {
+      content: '';
+      position: absolute;
+      top: 22%;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: inset 0 0 0 5px #fff, inset 0 0 0 18px #2a1d52;
+    }
+    .frente::before { left: 26%; }
+    .frente::after  { right: 26%; }
     .atras  { background: #5a3fb0; transform: rotateY(180deg) translateZ(calc(var(--fondo) / 2)); }
 
     .derecha, .izquierda {
@@ -170,6 +185,7 @@
     const SUAVIDAD_SEGUIR = 8;    // qué tan rápido la cámara alcanza al rectángulo
     const VELOCIDAD      = 320;   // velocidad máxima del rectángulo (píxeles por segundo)
     const ACELERACION    = 10;    // qué tan rápido arranca y frena
+    const GIRO_CUERPO    = 12;    // qué tan rápido el rectángulo se voltea hacia donde camina
     const BORDE          = 1500;  // no salir del piso
     const GIRO_FLECHAS   = 100;   // grados por segundo que gira la cámara con ← →
     const ALTURA_FLECHAS = 60;    // grados por segundo que sube o baja la cámara con ↑ ↓
@@ -194,6 +210,7 @@
     const pos = { x: 0, z: 0 };     // posición del rectángulo sobre el piso
     const vel = { x: 0, z: 0 };     // velocidad actual (para arrancar y frenar suave)
     const camPos = { x: 0, z: 0 };  // punto que mira la cámara (sigue al rectángulo)
+    let orientacion = 0;            // hacia dónde mira la cara de adelante (en radianes)
     const teclas = new Set();
 
     const TECLAS_USADAS = [
@@ -232,6 +249,14 @@
       vel.x = suavizar(vel.x, metaX, ACELERACION, dt);
       vel.z = suavizar(vel.z, metaZ, ACELERACION, dt);
 
+      // La cara de adelante mira hacia donde camina (girando por el lado más corto)
+      if (Math.hypot(vel.x, vel.z) > 20) {
+        const meta = Math.atan2(vel.x, vel.z);
+        let diferencia = meta - orientacion;
+        diferencia = Math.atan2(Math.sin(diferencia), Math.cos(diferencia));
+        orientacion += diferencia * (1 - Math.exp(-GIRO_CUERPO * dt));
+      }
+
       pos.x = limitar(pos.x + vel.x * dt, [-BORDE, BORDE]);
       pos.z = limitar(pos.z + vel.z * dt, [-BORDE, BORDE]);
 
@@ -250,7 +275,8 @@
     }
 
     function dibujar() {
-      jugador.style.transform = `translate3d(${pos.x}px, 0, ${pos.z}px)`;
+      jugador.style.transform =
+        `translate3d(${pos.x}px, 0, ${pos.z}px) rotateY(${orientacion}rad)`;
       // Mover la cámara equivale a mover el mundo al revés frente a ella.
       mundo.style.transform =
         `translateZ(${-actual.distancia}px)` +
