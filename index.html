@@ -158,7 +158,7 @@
     </div>
   </div>
 
-  <div class="ayuda">W A S D para mover el rectángulo · Arrastra para mover la cámara · Rueda para acercar o alejar</div>
+  <div class="ayuda">W A S D: mover el rectángulo · Flechas o arrastrar: mover la cámara · Rueda: acercar o alejar</div>
 
   <script>
     const mundo = document.querySelector('.mundo');
@@ -171,6 +171,8 @@
     const VELOCIDAD      = 320;   // velocidad máxima del rectángulo (píxeles por segundo)
     const ACELERACION    = 10;    // qué tan rápido arranca y frena
     const BORDE          = 1500;  // no salir del piso
+    const GIRO_FLECHAS   = 100;   // grados por segundo que gira la cámara con ← →
+    const ALTURA_FLECHAS = 60;    // grados por segundo que sube o baja la cámara con ↑ ↓
 
     // Cámara que orbita alrededor del rectángulo y siempre lo mira.
     // "objetivo" es hacia donde va la cámara; "actual" la sigue suavemente.
@@ -194,9 +196,12 @@
     const camPos = { x: 0, z: 0 };  // punto que mira la cámara (sigue al rectángulo)
     const teclas = new Set();
 
-    const TECLAS_MOVER = ['KeyW', 'KeyA', 'KeyS', 'KeyD'];
+    const TECLAS_USADAS = [
+      'KeyW', 'KeyA', 'KeyS', 'KeyD',                     // mover el rectángulo
+      'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',  // mover la cámara
+    ];
     document.addEventListener('keydown', e => {
-      if (TECLAS_MOVER.includes(e.code)) {
+      if (TECLAS_USADAS.includes(e.code)) {
         teclas.add(e.code);
         e.preventDefault();
       }
@@ -235,6 +240,15 @@
       camPos.z = suavizar(camPos.z, pos.z, SUAVIDAD_SEGUIR, dt);
     }
 
+    // Flechas: la cámara da vueltas alrededor del rectángulo, siempre mirándolo
+    function moverCamaraConFlechas(dt) {
+      if (teclas.has('ArrowLeft'))  objetivo.giro += GIRO_FLECHAS * dt;   // cámara hacia la izquierda
+      if (teclas.has('ArrowRight')) objetivo.giro -= GIRO_FLECHAS * dt;   // cámara hacia la derecha
+      if (teclas.has('ArrowUp'))    objetivo.inclinacion -= ALTURA_FLECHAS * dt; // subir (mirar más desde arriba)
+      if (teclas.has('ArrowDown'))  objetivo.inclinacion += ALTURA_FLECHAS * dt; // bajar (más a ras del piso)
+      objetivo.inclinacion = limitar(objetivo.inclinacion, LIMITES.inclinacion);
+    }
+
     function dibujar() {
       jugador.style.transform = `translate3d(${pos.x}px, 0, ${pos.z}px)`;
       // Mover la cámara equivale a mover el mundo al revés frente a ella.
@@ -249,6 +263,7 @@
     function animar(ahora) {
       const dt = Math.min((ahora - antes) / 1000, 0.05);
       antes = ahora;
+      moverCamaraConFlechas(dt);
       for (const k of ['giro', 'inclinacion', 'distancia']) {
         actual[k] = suavizar(actual[k], objetivo[k], SUAVIDAD_CAM, dt);
       }
