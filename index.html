@@ -7,8 +7,8 @@
   <style>
     :root {
       /* Huella de la sombra en el piso */
-      --ancho: 150px;
-      --fondo: 150px;
+      --ancho: 140px;
+      --fondo: 120px;
       /* Tamaño del piso */
       --piso: 5000px;
     }
@@ -116,7 +116,7 @@
 <body>
   <div class="mundo">
     <div class="piso"></div>
-    <!-- El jugador: pelota + su sombra, se mueven juntos -->
+    <!-- El jugador: personaje + su sombra, se mueven juntos -->
     <div class="jugador">
       <div class="sombra"></div>
       <div class="personaje"></div>
@@ -129,41 +129,52 @@
 
   <script>
     const mundo = document.querySelector('.mundo');
-    // ================= LA PELOTA (hecha de cubitos) =================
-    const VOXEL = 8;    // tamaño de cada cubito (igual que --voxel); más chico = más redonda
-    const RADIO = 11;   // radio de la pelota, en cubitos
+    const jugador = document.querySelector('.jugador');
+    const personaje = document.querySelector('.personaje');
+    const sombra = document.querySelector('.sombra');
 
-    // Franjas tipo pelota de playa
-    const FRANJAS = ['#7b5cd6', '#ffffff', '#ffd166', '#ffffff', '#f09ac4', '#ffffff'];
-    const TAPA = '#7b5cd6'; // círculos de arriba y abajo
+    // ===================== EL PERSONAJE =====================
+    // Una pelota blanca con dos patitas, hecha de cubitos pequeños.
+    const VOXEL  = 8;    // tamaño de cada cubito en píxeles (más chico = más redondo)
+    const RADIO  = 10;   // radio de la pelota, en cubitos
+    const PIERNA = 7;    // largo de las patitas que se ve debajo de la pelota, en cubitos
+    const SEPARACION = 4; // qué tan separadas están las patitas (desde el centro)
+    const BLANCO = '#ffffff';
 
-    function crearForma() {
-      const v = new Map();  // "x,y,z" -> color
+    const CENTRO_Y = PIERNA + RADIO; // altura del centro de la pelota (en cubitos)
+    const CADERA_Y = PIERNA + 2;     // desde dónde giran las patitas al caminar
+
+    function crearPelota() {
+      const v = new Set();
       for (let x = -RADIO; x <= RADIO; x++)
         for (let y = -RADIO; y <= RADIO; y++)
-          for (let z = -RADIO; z <= RADIO; z++) {
-            if (x * x + y * y + z * z > (RADIO + 0.3) ** 2) continue;
-            let color;
-            if (Math.abs(y) > RADIO * 0.82) {
-              color = TAPA;
-            } else {
-              const angulo = (Math.atan2(z, x) + Math.PI) / (2 * Math.PI); // 0..1 alrededor
-              color = FRANJAS[Math.floor(angulo * FRANJAS.length) % FRANJAS.length];
-            }
-            v.set(`${x},${y},${z}`, color);
-          }
+          for (let z = -RADIO; z <= RADIO; z++)
+            if (x * x + y * y + z * z <= (RADIO + 0.3) ** 2) v.add(`${x},${y + CENTRO_Y},${z}`);
       return v;
     }
 
-    const aRGB = hex => { const n = parseInt(hex.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
+    function crearPata(lado) {
+      const v = new Set();
+      const px = lado * SEPARACION;
+      // Columna redondeada (3x3 sin las esquinas) desde el piso hasta dentro de la pelota
+      for (let y = 0; y <= CADERA_Y + 1; y++)
+        for (let dx = -1; dx <= 1; dx++)
+          for (let dz = -1; dz <= 1; dz++) {
+            if (dx && dz) continue;
+            v.add(`${px + dx},${y},${dz}`);
+          }
+      // Piecito: un poco más largo hacia adelante
+      for (const dx of [-1, 0, 1]) v.add(`${px + dx},0,2`);
+      v.add(`${px},1,2`);
+      return v;
+    }
 
-    // Convierte los cubitos en una lista de caras visibles (las de adentro no se dibujan).
-    // Coordenadas como en CSS: x derecha, y hacia ABAJO, z hacia la cámara. Centro en (0,0,0).
-    function construirCaras() {
-      const forma = crearForma();
+    // Convierte cubitos en caras visibles (las de adentro no se dibujan).
+    // Coordenadas como en CSS: x derecha, y hacia ABAJO, z hacia adelante.
+    // "centroCurva": si se da, la luz se calcula como en una esfera lisa (se ve más redonda)
+    function caras(forma, color, esconderDentroDe, centroCurva) {
       const h = VOXEL / 2;
-      const caras = [];
-      // vecino en la grilla (y hacia arriba) -> normal y ejes de la cara (y hacia abajo)
+      const lista = [];
       const DIRS = [
         [[1, 0, 0],  [1, 0, 0],  [0, 1, 0], [0, 0, 1]],
         [[-1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, 0, 1]],
@@ -172,67 +183,144 @@
         [[0, 0, 1],  [0, 0, 1],  [1, 0, 0], [0, 1, 0]],
         [[0, 0, -1], [0, 0, -1], [1, 0, 0], [0, 1, 0]],
       ];
-      for (const [clave, color] of forma) {
+      for (const clave of forma) {
         const [vx, vy, vz] = clave.split(',').map(Number);
-        const c = [vx * VOXEL, -vy * VOXEL, vz * VOXEL];
+        const c = [vx * VOXEL, -(vy + 0.5) * VOXEL, vz * VOXEL];
         for (const [[dx, dy, dz], n, u, w] of DIRS) {
-          if (forma.has(`${vx + dx},${vy + dy},${vz + dz}`)) continue; // cara escondida
+          const vecino = `${vx + dx},${vy + dy},${vz + dz}`;
+          if (forma.has(vecino) || (esconderDentroDe && esconderDentroDe.has(vecino))) continue;
           const centro = c.map((v, i) => v + n[i] * h);
           const esquinas = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) =>
             centro.map((v, i) => v + (u[i] * a + w[i] * b) * h));
-          caras.push({ centro, normal: n, esquinas, rgb: aRGB(color) });
+          let luzN = n;
+          if (centroCurva) {
+            const d = centro.map((v, i) => v - centroCurva[i]);
+            const l = Math.hypot(...d);
+            luzN = d.map(v => v / l);
+          }
+          lista.push({ centro, normal: n, luzN, esquinas, rgb: aRGB(color) });
         }
       }
-      return caras;
+      return lista;
     }
 
-    const CARAS_PELOTA = construirCaras();
-    const RADIO_PX = (RADIO + 0.5) * VOXEL;
-    const ALTO = RADIO_PX * 2;
+    const aRGB = hex => { const n = parseInt(hex.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 
-    // Rotación acumulada de la pelota (para que ruede de verdad)
-    let giroPelota = [1, 0, 0, 0, 1, 0, 0, 0, 1]; // matriz 3x3
+    const pelota = crearPelota();
+    const PARTES = [
+      { caras: caras(pelota, BLANCO, null, [0, -(CENTRO_Y + 0.5) * VOXEL, 0]), giro: () => 0 },
+      { caras: caras(crearPata(-1), BLANCO, pelota), giro: () => anguloPaso },
+      { caras: caras(crearPata(1),  BLANCO, pelota), giro: () => -anguloPaso },
+    ];
+    const ALTO = (CENTRO_Y + RADIO + 1) * VOXEL; // altura total
 
-    function multiplicar(a, b) {
-      const r = [];
-      for (let i = 0; i < 3; i++)
-        for (let j = 0; j < 3; j++)
-          r[i * 3 + j] = a[i * 3] * b[j] + a[i * 3 + 1] * b[3 + j] + a[i * 3 + 2] * b[6 + j];
-      return r;
+    // ================= Ajustes (cámbialos a gusto) =================
+    const SENSIBILIDAD    = 0.25;  // grados que gira la cámara por cada píxel que arrastras
+    const SUAVIDAD_CAM    = 14;    // más alto = la cámara responde más rápido
+    const SUAVIDAD_SEGUIR = 8;     // qué tan rápido la cámara alcanza al personaje
+    const VELOCIDAD       = 320;   // velocidad máxima (píxeles por segundo)
+    const ACELERACION     = 10;    // qué tan rápido arranca y frena
+    const BORDE           = 1500;  // no salir del piso
+    const GIRO_FLECHAS    = 100;   // grados por segundo que gira la cámara con ← →
+    const ALTURA_FLECHAS  = 60;    // grados por segundo que sube o baja la cámara con ↑ ↓
+    const GIRO_CUERPO     = 12;    // qué tan rápido se voltea hacia donde camina
+    const FUERZA_SALTO    = 650;   // velocidad hacia arriba al saltar (más = salta más alto)
+    const GRAVEDAD        = 1800;  // qué tan rápido cae
+    const PASO_MAX        = 30;    // cuánto mueven las patitas al caminar (grados)
+    const RITMO_PASO      = 0.045; // qué tan rápido dan los pasos
+
+    // Cámara que orbita alrededor del personaje y siempre lo mira.
+    const objetivo = { giro: -30, inclinacion: -15, distancia: 500 };
+    const actual   = { ...objetivo };
+    const LIMITES = {
+      inclinacion: [-70, -2],   // nunca por debajo del piso
+      distancia:   [150, 800],
+    };
+    const limitar = (v, [min, max]) => Math.max(min, Math.min(max, v));
+    const suavizar = (valor, meta, rapidez, dt) =>
+      valor + (meta - valor) * (1 - Math.exp(-rapidez * dt));
+
+    // ---- Estado del personaje ----
+    const pos = { x: 0, z: 0 };
+    const vel = { x: 0, z: 0 };
+    const camPos = { x: 0, z: 0 };
+    let orientacion = 0;     // hacia dónde mira (en radianes)
+    let altura = 0, velY = 0;
+    let fasePaso = 0, fuerzaPaso = 0, anguloPaso = 0;
+    const teclas = new Set();
+
+    const TECLAS_USADAS = [
+      'KeyW', 'KeyA', 'KeyS', 'KeyD',                     // mover
+      'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',  // cámara
+    ];
+    document.addEventListener('keydown', e => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (!e.repeat && altura === 0) velY = FUERZA_SALTO;
+        return;
+      }
+      if (TECLAS_USADAS.includes(e.code)) {
+        teclas.add(e.code);
+        e.preventDefault();
+      }
+    });
+    document.addEventListener('keyup', e => teclas.delete(e.code));
+    window.addEventListener('blur', () => teclas.clear());
+
+    function mover(dt) {
+      let adelante = 0, derecha = 0;
+      if (teclas.has('KeyW')) adelante += 1;
+      if (teclas.has('KeyS')) adelante -= 1;
+      if (teclas.has('KeyD')) derecha  += 1;
+      if (teclas.has('KeyA')) derecha  -= 1;
+      const largo = Math.hypot(adelante, derecha) || 1;  // en diagonal no va más rápido
+      adelante /= largo;
+      derecha  /= largo;
+
+      // "Adelante" es hacia donde mira la cámara
+      const g = actual.giro * Math.PI / 180;
+      const metaX = (Math.sin(g) * adelante + Math.cos(g) * derecha) * VELOCIDAD;
+      const metaZ = (-Math.cos(g) * adelante + Math.sin(g) * derecha) * VELOCIDAD;
+      vel.x = suavizar(vel.x, metaX, ACELERACION, dt);
+      vel.z = suavizar(vel.z, metaZ, ACELERACION, dt);
+
+      const rapidez = Math.hypot(vel.x, vel.z);
+      // Se voltea hacia donde camina, por el lado más corto
+      if (rapidez > 20) {
+        let dif = Math.atan2(vel.x, vel.z) - orientacion;
+        dif = Math.atan2(Math.sin(dif), Math.cos(dif));
+        orientacion += dif * (1 - Math.exp(-GIRO_CUERPO * dt));
+      }
+
+      const antesX = pos.x, antesZ = pos.z;
+      pos.x = limitar(pos.x + vel.x * dt, [-BORDE, BORDE]);
+      pos.z = limitar(pos.z + vel.z * dt, [-BORDE, BORDE]);
+
+      // Patitas: dan pasos según lo que avanza; al detenerse vuelven a su lugar
+      if (altura === 0) fasePaso += Math.hypot(pos.x - antesX, pos.z - antesZ) * RITMO_PASO;
+      fuerzaPaso = suavizar(fuerzaPaso, rapidez > 30 && altura === 0 ? 1 : 0, 10, dt);
+      anguloPaso = Math.sin(fasePaso) * PASO_MAX * fuerzaPaso;
+
+      camPos.x = suavizar(camPos.x, pos.x, SUAVIDAD_SEGUIR, dt);
+      camPos.z = suavizar(camPos.z, pos.z, SUAVIDAD_SEGUIR, dt);
     }
 
-    // Gira "angulo" radianes alrededor del eje (ex, ey, ez)
-    function rotacion(ex, ey, ez, angulo) {
-      const c = Math.cos(angulo), s = Math.sin(angulo), t = 1 - c;
-      return [
-        t * ex * ex + c,      t * ex * ey - s * ez, t * ex * ez + s * ey,
-        t * ex * ey + s * ez, t * ey * ey + c,      t * ey * ez - s * ex,
-        t * ex * ez - s * ey, t * ey * ez + s * ex, t * ez * ez + c,
-      ];
+    function moverCamaraConFlechas(dt) {
+      if (teclas.has('ArrowLeft'))  objetivo.giro += GIRO_FLECHAS * dt;
+      if (teclas.has('ArrowRight')) objetivo.giro -= GIRO_FLECHAS * dt;
+      if (teclas.has('ArrowUp'))    objetivo.inclinacion -= ALTURA_FLECHAS * dt;
+      if (teclas.has('ArrowDown'))  objetivo.inclinacion += ALTURA_FLECHAS * dt;
+      objetivo.inclinacion = limitar(objetivo.inclinacion, LIMITES.inclinacion);
     }
 
-    // Corrige pequeños errores que se acumulan al multiplicar muchas veces
-    function enderezar(m) {
-      let a = [m[0], m[3], m[6]], b = [m[1], m[4], m[7]];
-      const largo = v => Math.hypot(...v);
-      a = a.map(x => x / largo(a));
-      const d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-      b = b.map((x, i) => x - d * a[i]);
-      b = b.map(x => x / largo(b));
-      const c = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-      return [a[0], b[0], c[0], a[1], b[1], c[1], a[2], b[2], c[2]];
+    function saltar(dt) {
+      if (altura === 0 && velY === 0) return;
+      velY -= GRAVEDAD * dt;
+      altura += velY * dt;
+      if (altura <= 0) { altura = 0; velY = 0; }
     }
 
-    // La pelota rueda la distancia que avanzó (sin resbalar)
-    function rodar(dx, dz) {
-      const distancia = Math.hypot(dx, dz);
-      if (distancia < 0.001) return;
-      // Eje perpendicular al movimiento, sobre el piso (coordenadas CSS: y hacia abajo)
-      const ex = -dz / distancia, ez = dx / distancia;
-      giroPelota = enderezar(multiplicar(rotacion(ex, 0, ez, distancia / RADIO_PX), giroPelota));
-    }
-
-    // ---- Dibujar la pelota en el canvas con la misma cámara que la escena ----
+    // ---- Dibujar el personaje en el canvas con la misma cámara que la escena ----
     const lienzo = document.getElementById('pelota');
     const ctx = lienzo.getContext('2d');
     const PERSPECTIVA = 900; // igual que "perspective" del body
@@ -246,48 +334,52 @@
     addEventListener('resize', ajustarLienzo);
     ajustarLienzo();
 
-    function dibujarPelota() {
+    function dibujarPersonaje() {
       ctx.clearRect(0, 0, innerWidth, innerHeight);
-      // Matriz completa: cámara (mundo) · posición (jugador) · salto y giro (pelota)
-      const M = new DOMMatrix(mundo.style.transform)
-        .multiply(new DOMMatrix(jugador.style.transform))
+      const camara = new DOMMatrix(mundo.style.transform);
+      const enMundo = new DOMMatrix(jugador.style.transform)
         .multiply(new DOMMatrix(personaje.style.transform));
-      const { m11, m12, m13, m21, m22, m23, m31, m32, m33, m41, m42, m43 } = M;
       const cx = innerWidth / 2, cy = innerHeight / 2;
-      const g = giroPelota;
+      const caderaY = -CADERA_Y * VOXEL;
 
       const lista = [];
-      for (const cara of CARAS_PELOTA) {
-        const [px, py, pz] = cara.centro;
-        const qx = m11 * px + m21 * py + m31 * pz + m41;
-        const qy = m12 * px + m22 * py + m32 * pz + m42;
-        const qz = m13 * px + m23 * py + m33 * pz + m43;
-        const [nx, ny, nz] = cara.normal;
-        const vx = m11 * nx + m21 * ny + m31 * nz;
-        const vy = m12 * nx + m22 * ny + m32 * nz;
-        const vz = m13 * nx + m23 * ny + m33 * nz;
-        // Solo las caras que miran hacia la cámara
-        if (vx * -qx + vy * -qy + vz * (PERSPECTIVA - qz) <= 0) continue;
+      for (const parte of PARTES) {
+        // Las patitas giran desde la cadera
+        const W = enMundo.translate(0, caderaY, 0).rotate(parte.giro(), 0, 0).translate(0, -caderaY, 0);
+        const { m11, m12, m13, m21, m22, m23, m31, m32, m33, m41, m42, m43 } = camara.multiply(W);
+        for (const cara of parte.caras) {
+          const [px, py, pz] = cara.centro;
+          const qx = m11 * px + m21 * py + m31 * pz + m41;
+          const qy = m12 * px + m22 * py + m32 * pz + m42;
+          const qz = m13 * px + m23 * py + m33 * pz + m43;
+          const [nx, ny, nz] = cara.normal;
+          const vx = m11 * nx + m21 * ny + m31 * nz;
+          const vy = m12 * nx + m22 * ny + m32 * nz;
+          const vz = m13 * nx + m23 * ny + m33 * nz;
+          if (vx * -qx + vy * -qy + vz * (PERSPECTIVA - qz) <= 0) continue; // mira hacia atrás
 
-        const pts = cara.esquinas.map(([x, y, z]) => {
-          const X = m11 * x + m21 * y + m31 * z + m41;
-          const Y = m12 * x + m22 * y + m32 * z + m42;
-          const Z = m13 * x + m23 * y + m33 * z + m43;
-          const f = PERSPECTIVA / (PERSPECTIVA - Z);
-          return [cx + X * f, cy + Y * f];
-        });
+          const pts = cara.esquinas.map(([x, y, z]) => {
+            const X = m11 * x + m21 * y + m31 * z + m41;
+            const Y = m12 * x + m22 * y + m32 * z + m42;
+            const Z = m13 * x + m23 * y + m33 * z + m43;
+            const f = PERSPECTIVA / (PERSPECTIVA - Z);
+            return [cx + X * f, cy + Y * f];
+          });
 
-        // Luz desde arriba: según hacia dónde apunta la cara en el mundo (no gira con la cámara)
-        const ny2 = g[3] * nx + g[4] * ny + g[5] * nz;   // componente vertical (y hacia abajo)
-        const nx2 = g[0] * nx + g[1] * ny + g[2] * nz;
-        const luz = Math.max(0.55, Math.min(1.12, 0.84 - 0.26 * ny2 - 0.06 * nx2));
-        const [r, gg, b] = cara.rgb;
-        lista.push({ z: qz, pts, color: `rgb(${Math.min(255, r * luz) | 0},${Math.min(255, gg * luz) | 0},${Math.min(255, b * luz) | 0})` });
+          // Luz desde arriba y un poco de lado (en el mundo, no gira con la cámara)
+          const [lx, ly, lz] = cara.luzN;
+          const wy = W.m12 * lx + W.m22 * ly + W.m32 * lz;
+          const wx = W.m11 * lx + W.m21 * ly + W.m31 * lz;
+          const luz = Math.max(0.6, Math.min(1, 0.8 - 0.2 * wy - 0.08 * wx));
+          const [r, g, b] = cara.rgb;
+          lista.push({ z: qz, pts, color: `rgb(${r * luz | 0},${g * luz | 0},${b * luz | 0})` });
+        }
       }
 
       lista.sort((a, b) => a.z - b.z); // primero lo más lejano
       ctx.lineWidth = 1;
       ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(60, 50, 100, 0.08)';
       for (const { pts, color } of lista) {
         ctx.beginPath();
         ctx.moveTo(pts[0][0], pts[0][1]);
@@ -297,143 +389,27 @@
         ctx.closePath();
         ctx.fillStyle = color;
         ctx.fill();
-        ctx.strokeStyle = 'rgba(30, 10, 70, 0.13)';
         ctx.stroke();
       }
     }
 
-    function matrizCSS(m) {
-      // CSS usa matrix3d por columnas
-      return `matrix3d(${m[0]},${m[3]},${m[6]},0,${m[1]},${m[4]},${m[7]},0,${m[2]},${m[5]},${m[8]},0,0,0,0,1)`;
-    }
-
-    // ===== Ajustes (cámbialos a gusto) =====
-    const SENSIBILIDAD   = 0.25;  // grados que gira la cámara por cada píxel que arrastras
-    const SUAVIDAD_CAM   = 14;    // más alto = la cámara responde más rápido
-    const SUAVIDAD_SEGUIR = 8;    // qué tan rápido la cámara alcanza al rectángulo
-    const VELOCIDAD      = 320;   // velocidad máxima del rectángulo (píxeles por segundo)
-    const ACELERACION    = 10;    // qué tan rápido arranca y frena
-    const FUERZA_SALTO   = 650;   // velocidad hacia arriba al saltar (más = salta más alto)
-    const GRAVEDAD       = 1800;  // qué tan rápido cae
-    const BORDE          = 1500;  // no salir del piso
-    const GIRO_FLECHAS   = 100;   // grados por segundo que gira la cámara con ← →
-    const ALTURA_FLECHAS = 60;    // grados por segundo que sube o baja la cámara con ↑ ↓
-
-    // Cámara que orbita alrededor de la pelota y siempre lo mira.
-    // "objetivo" es hacia donde va la cámara; "actual" la sigue suavemente.
-    const objetivo = { giro: -30, inclinacion: -15, distancia: 500 };
-    const actual   = { ...objetivo };
-
-    const LIMITES = {
-      inclinacion: [-70, -2],   // nunca por debajo del piso
-      distancia:   [150, 800],
-    };
-    const limitar = (v, [min, max]) => Math.max(min, Math.min(max, v));
-
-    // Acerca "valor" a "meta" de forma suave, igual sin importar los FPS
-    const suavizar = (valor, meta, rapidez, dt) =>
-      valor + (meta - valor) * (1 - Math.exp(-rapidez * dt));
-
-    // ---- Movimiento del rectángulo con W A S D ----
-    const jugador = document.querySelector('.jugador');
-    const pos = { x: 0, z: 0 };     // posición del rectángulo sobre el piso
-    const vel = { x: 0, z: 0 };     // velocidad actual (para arrancar y frenar suave)
-    const camPos = { x: 0, z: 0 };  // punto que mira la cámara (sigue al rectángulo)
-    let altura = 0;                 // qué tan arriba del piso está (0 = en el piso)
-    let velY = 0;                   // velocidad vertical del salto
-    const personaje = document.querySelector('.personaje');
-    const sombra = document.querySelector('.sombra');
-    const teclas = new Set();
-
-    const TECLAS_USADAS = [
-      'KeyW', 'KeyA', 'KeyS', 'KeyD',                     // mover el rectángulo
-      'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',  // mover la cámara
-    ];
-    document.addEventListener('keydown', e => {
-      // Espacio: saltar (solo si está en el piso, y sin repetir al mantenerla)
-      if (e.code === 'Space') {
-        e.preventDefault();
-        if (!e.repeat && altura === 0) velY = FUERZA_SALTO;
-        return;
-      }
-      if (TECLAS_USADAS.includes(e.code)) {
-        teclas.add(e.code);
-        e.preventDefault();
-      }
-    });
-    document.addEventListener('keyup', e => teclas.delete(e.code));
-    // Si cambias de ventana con una tecla apretada, que no se quede caminando solo
-    window.addEventListener('blur', () => teclas.clear());
-
-    function moverJugador(dt) {
-      // Dirección según las teclas apretadas (se pueden combinar)
-      let adelante = 0, derecha = 0;
-      if (teclas.has('KeyW')) adelante += 1;
-      if (teclas.has('KeyS')) adelante -= 1;
-      if (teclas.has('KeyD')) derecha  += 1;
-      if (teclas.has('KeyA')) derecha  -= 1;
-
-      // En diagonal no debe ir más rápido que en línea recta
-      const largo = Math.hypot(adelante, derecha) || 1;
-      adelante /= largo;
-      derecha  /= largo;
-
-      // "Adelante" es hacia donde mira la cámara
-      const g = actual.giro * Math.PI / 180;
-      const metaX = (Math.sin(g) * adelante + Math.cos(g) * derecha) * VELOCIDAD;
-      const metaZ = (-Math.cos(g) * adelante + Math.sin(g) * derecha) * VELOCIDAD;
-
-      // Acelerar o frenar suavemente hacia esa velocidad
-      vel.x = suavizar(vel.x, metaX, ACELERACION, dt);
-      vel.z = suavizar(vel.z, metaZ, ACELERACION, dt);
-
-      const antesX = pos.x, antesZ = pos.z;
-      pos.x = limitar(pos.x + vel.x * dt, [-BORDE, BORDE]);
-      pos.z = limitar(pos.z + vel.z * dt, [-BORDE, BORDE]);
-      rodar(pos.x - antesX, pos.z - antesZ);
-
-      // La cámara sigue a la pelota con un pequeño retraso
-      camPos.x = suavizar(camPos.x, pos.x, SUAVIDAD_SEGUIR, dt);
-      camPos.z = suavizar(camPos.z, pos.z, SUAVIDAD_SEGUIR, dt);
-    }
-
-    // Flechas: la cámara da vueltas alrededor de la pelota, siempre mirándolo
-    function moverCamaraConFlechas(dt) {
-      if (teclas.has('ArrowLeft'))  objetivo.giro += GIRO_FLECHAS * dt;   // cámara hacia la izquierda
-      if (teclas.has('ArrowRight')) objetivo.giro -= GIRO_FLECHAS * dt;   // cámara hacia la derecha
-      if (teclas.has('ArrowUp'))    objetivo.inclinacion -= ALTURA_FLECHAS * dt; // subir (mirar más desde arriba)
-      if (teclas.has('ArrowDown'))  objetivo.inclinacion += ALTURA_FLECHAS * dt; // bajar (más a ras del piso)
-      objetivo.inclinacion = limitar(objetivo.inclinacion, LIMITES.inclinacion);
-    }
-
-    function saltar(dt) {
-      if (altura === 0 && velY === 0) return;
-      velY -= GRAVEDAD * dt;
-      altura += velY * dt;
-      if (altura <= 0) {   // tocó el piso
-        altura = 0;
-        velY = 0;
-      }
-    }
-
     function dibujar() {
-      personaje.style.transform =
-        `translateY(${-(altura + RADIO_PX)}px) ${matrizCSS(giroPelota)}`;
+      personaje.style.transform = `translateY(${-altura}px)`;
       // La sombra queda en el piso: más chica y suave mientras más alto salta
       const lejos = Math.min(altura / 200, 1);
       sombra.style.transform =
-        `translateY(-1px) rotateX(90deg) scale(${1.3 - lejos * 0.5})`;
+        `translateY(-1px) rotateX(90deg) scale(${1.2 - lejos * 0.5})`;
       sombra.style.opacity = 1 - lejos * 0.6;
 
       jugador.style.transform =
-        `translate3d(${pos.x}px, 0, ${pos.z}px)`;
+        `translate3d(${pos.x}px, 0, ${pos.z}px) rotateY(${orientacion}rad)`;
       // Mover la cámara equivale a mover el mundo al revés frente a ella.
       mundo.style.transform =
         `translateZ(${-actual.distancia}px)` +
         ` rotateX(${actual.inclinacion}deg)` +
         ` rotateY(${actual.giro}deg)` +
         ` translate3d(${-camPos.x}px, ${ALTO / 2}px, ${-camPos.z}px)`;
-      dibujarPelota();
+      dibujarPersonaje();
     }
 
     let antes = performance.now();
@@ -441,24 +417,21 @@
       const dt = Math.min((ahora - antes) / 1000, 0.05);
       antes = ahora;
       moverCamaraConFlechas(dt);
-      for (const k of ['giro', 'inclinacion', 'distancia']) {
+      for (const k of ['giro', 'inclinacion', 'distancia'])
         actual[k] = suavizar(actual[k], objetivo[k], SUAVIDAD_CAM, dt);
-      }
-      moverJugador(dt);
+      mover(dt);
       saltar(dt);
       dibujar();
       requestAnimationFrame(animar);
     }
 
-    // Arrastrar: mover la cámara alrededor de la pelota
+    // Arrastrar: mover la cámara alrededor del personaje
     let arrastrando = false;
-
     document.addEventListener('pointerdown', e => {
       arrastrando = true;
-      document.body.setPointerCapture(e.pointerId); // no se corta si sales de la ventana
+      document.body.setPointerCapture(e.pointerId);
       document.body.classList.add('arrastrando');
     });
-
     document.addEventListener('pointermove', e => {
       if (!arrastrando) return;
       objetivo.giro += e.movementX * SENSIBILIDAD;
@@ -467,7 +440,6 @@
         LIMITES.inclinacion
       );
     });
-
     function soltar() {
       arrastrando = false;
       document.body.classList.remove('arrastrando');
@@ -475,14 +447,11 @@
     document.addEventListener('pointerup', soltar);
     document.addEventListener('pointercancel', soltar);
 
-    // Rueda del mouse: acercar o alejar (proporcional, se siente parejo)
+    // Rueda del mouse: acercar o alejar
     document.addEventListener('wheel', e => {
       e.preventDefault();
       const paso = Math.max(-1, Math.min(1, e.deltaY / 100));
-      objetivo.distancia = limitar(
-        objetivo.distancia * (1 + paso * 0.15),
-        LIMITES.distancia
-      );
+      objetivo.distancia = limitar(objetivo.distancia * (1 + paso * 0.15), LIMITES.distancia);
     }, { passive: false });
 
     requestAnimationFrame(animar);
