@@ -22,6 +22,7 @@
       justify-content: center;
       background: #f4f4f8;
       perspective: 900px;
+      touch-action: none;
     }
 
     .caja {
@@ -29,8 +30,11 @@
       width: var(--ancho);
       height: var(--alto);
       transform-style: preserve-3d;
-      animation: girar 12s linear infinite;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
     }
+    .caja.arrastrando { cursor: grabbing; }
 
     .cara {
       position: absolute;
@@ -70,14 +74,6 @@
     .arriba { background: #9a80e8; transform: rotateX(90deg)  translateZ(calc(var(--alto) / 2)); }
     .abajo  { background: #4a3296; transform: rotateX(-90deg) translateZ(calc(var(--alto) / 2)); }
 
-    @keyframes girar {
-      from { transform: rotateX(-20deg) rotateY(0deg); }
-      to   { transform: rotateX(-20deg) rotateY(360deg); }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .caja { animation: none; transform: rotateX(-20deg) rotateY(-30deg); }
-    }
   </style>
 </head>
 <body>
@@ -89,5 +85,53 @@
     <div class="cara arriba"></div>
     <div class="cara abajo"></div>
   </div>
+
+  <script>
+    const caja = document.querySelector('.caja');
+    let rotX = -20, rotY = -30;
+    let arrastrando = false, ultimoX = 0, ultimoY = 0;
+    let girarSolo = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function dibujar() {
+      caja.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+    }
+
+    // Gira solo hasta que lo toques por primera vez
+    function animar() {
+      if (girarSolo && !arrastrando) {
+        rotY += 0.5;
+        dibujar();
+      }
+      requestAnimationFrame(animar);
+    }
+
+    // Se puede arrastrar desde cualquier parte de la página
+    document.addEventListener('pointerdown', e => {
+      arrastrando = true;
+      girarSolo = false;
+      ultimoX = e.clientX;
+      ultimoY = e.clientY;
+      caja.classList.add('arrastrando');
+    });
+
+    document.addEventListener('pointermove', e => {
+      if (!arrastrando) return;
+      rotY += (e.clientX - ultimoX) * 0.5;
+      rotX -= (e.clientY - ultimoY) * 0.5;
+      ultimoX = e.clientX;
+      ultimoY = e.clientY;
+      dibujar();
+    });
+
+    function soltar() {
+      arrastrando = false;
+      caja.classList.remove('arrastrando');
+    }
+    document.addEventListener('pointerup', soltar);
+    document.addEventListener('pointercancel', soltar);
+
+    dibujar();
+    animar();
+  </script>
 </body>
 </html>
