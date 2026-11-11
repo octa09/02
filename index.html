@@ -6,10 +6,12 @@
   <title>02</title>
   <style>
     :root {
-      --ancho: 240px;
-      --alto: 140px;
-      --fondo: 100px;
-      --suelo: 800px;
+      /* Rectángulo vertical */
+      --ancho: 120px;
+      --alto: 260px;
+      --fondo: 80px;
+      /* Tamaño del piso */
+      --piso: 5000px;
     }
 
     html, body {
@@ -22,59 +24,61 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #f4f4f8;
-      perspective: 1000px;
+      background: linear-gradient(#ecebf5, #f6f5fa 55%);
+      perspective: 900px;
       touch-action: none;
       user-select: none;
       cursor: grab;
     }
     body.arrastrando { cursor: grabbing; }
 
-    /* Todo lo que gira junto: suelo, sombra y caja */
-    .escena {
+    /* El mundo: piso, sombra y rectángulo. No se mueve solo;
+       la "cámara" se controla con el mouse desde el script. */
+    .mundo {
       position: relative;
       width: 0;
       height: 0;
       transform-style: preserve-3d;
     }
 
-    /* Terreno plano con cuadrícula, que se desvanece en los bordes */
-    .suelo {
+    /* Piso plano grande con cuadrícula, que se pierde a lo lejos */
+    .piso {
       position: absolute;
-      width: var(--suelo);
-      height: var(--suelo);
-      left: calc(var(--suelo) / -2);
-      top: calc(var(--suelo) / -2);
-      transform: translateY(calc(var(--alto) / 2)) rotateX(90deg);
+      width: var(--piso);
+      height: var(--piso);
+      left: calc(var(--piso) / -2);
+      top: calc(var(--piso) / -2);
+      transform: rotateX(90deg);
       background-color: #dcd6ee;
       background-image:
         linear-gradient(#c3b9e3 1px, transparent 1px),
         linear-gradient(90deg, #c3b9e3 1px, transparent 1px);
-      background-size: 40px 40px;
+      background-size: 50px 50px;
       background-position: center;
-      -webkit-mask-image: radial-gradient(circle, #000 45%, transparent 70%);
-              mask-image: radial-gradient(circle, #000 45%, transparent 70%);
+      -webkit-mask-image: radial-gradient(circle, #000 12%, transparent 45%);
+              mask-image: radial-gradient(circle, #000 12%, transparent 45%);
     }
 
-    /* Sombra suave debajo de la caja */
+    /* Sombra suave en el piso, debajo del rectángulo */
     .sombra {
       position: absolute;
       width: var(--ancho);
       height: var(--fondo);
       left: calc(var(--ancho) / -2);
       top: calc(var(--fondo) / -2);
-      transform: translateY(calc(var(--alto) / 2 - 1px)) rotateX(90deg) scale(1.15);
+      transform: translateY(-1px) rotateX(90deg) scale(1.3);
       background: rgba(40, 20, 90, 0.35);
-      filter: blur(14px);
-      border-radius: 12px;
+      filter: blur(12px);
+      border-radius: 10px;
     }
 
-    .caja {
+    /* El rectángulo, parado con la base sobre el piso */
+    .rectangulo {
       position: absolute;
       width: var(--ancho);
       height: var(--alto);
       left: calc(var(--ancho) / -2);
-      top: calc(var(--alto) / -2);
+      top: calc(var(--alto) * -1);
       transform-style: preserve-3d;
     }
 
@@ -86,7 +90,6 @@
       box-sizing: border-box;
     }
 
-    /* Caras grandes: frente y atrás */
     .frente, .atras {
       width: var(--ancho);
       height: var(--alto);
@@ -96,7 +99,6 @@
     .frente { background: #7b5cd6; transform: translateZ(calc(var(--fondo) / 2)); }
     .atras  { background: #5a3fb0; transform: rotateY(180deg) translateZ(calc(var(--fondo) / 2)); }
 
-    /* Caras laterales: derecha e izquierda */
     .derecha, .izquierda {
       width: var(--fondo);
       height: var(--alto);
@@ -106,7 +108,6 @@
     .derecha   { background: #6a4cc4; transform: rotateY(90deg)  translateZ(calc(var(--ancho) / 2)); }
     .izquierda { background: #6a4cc4; transform: rotateY(-90deg) translateZ(calc(var(--ancho) / 2)); }
 
-    /* Caras de arriba y abajo */
     .arriba, .abajo {
       width: var(--ancho);
       height: var(--fondo);
@@ -115,13 +116,24 @@
     }
     .arriba { background: #9a80e8; transform: rotateX(90deg)  translateZ(calc(var(--alto) / 2)); }
     .abajo  { background: #4a3296; transform: rotateX(-90deg) translateZ(calc(var(--alto) / 2)); }
+
+    .ayuda {
+      position: fixed;
+      bottom: 16px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font: 14px system-ui, sans-serif;
+      color: #6b6290;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
-  <div class="escena">
-    <div class="suelo"></div>
+  <div class="mundo">
+    <div class="piso"></div>
     <div class="sombra"></div>
-    <div class="caja">
+    <div class="rectangulo">
       <div class="cara frente"></div>
       <div class="cara atras"></div>
       <div class="cara derecha"></div>
@@ -131,31 +143,45 @@
     </div>
   </div>
 
+  <div class="ayuda">Arrastra para mover la cámara · Rueda del mouse para acercar o alejar</div>
+
   <script>
-    const escena = document.querySelector('.escena');
-    let rotX = -25, rotY = -30;
-    let arrastrando = false, ultimoX = 0, ultimoY = 0;
-    let girarSolo = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const mundo = document.querySelector('.mundo');
+    const ALTO = 260; // igual que --alto
+
+    // Cámara que orbita alrededor del rectángulo y siempre lo mira.
+    // "objetivo" es hacia donde va la cámara; "actual" la sigue suavemente.
+    const objetivo = { giro: -30, inclinacion: -15, distancia: 500 };
+    const actual   = { ...objetivo };
+
+    const LIMITES = {
+      inclinacion: [-70, -2],   // nunca por debajo del piso
+      distancia:   [150, 800],
+    };
+    const limitar = (v, [min, max]) => Math.max(min, Math.min(max, v));
 
     function dibujar() {
-      // No dejar que la cámara pase por debajo del suelo
-      rotX = Math.max(-85, Math.min(-5, rotX));
-      escena.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+      // Mover la cámara equivale a mover el mundo al revés frente a ella.
+      mundo.style.transform =
+        `translateZ(${-actual.distancia}px)` +
+        ` rotateX(${actual.inclinacion}deg)` +
+        ` rotateY(${actual.giro}deg)` +
+        ` translateY(${ALTO / 2}px)`; // mirar al centro del rectángulo
     }
 
-    // Gira solo hasta que lo toques por primera vez
     function animar() {
-      if (girarSolo && !arrastrando) {
-        rotY += 0.3;
-        dibujar();
+      for (const k of ['giro', 'inclinacion', 'distancia']) {
+        actual[k] += (objetivo[k] - actual[k]) * 0.15;
       }
+      dibujar();
       requestAnimationFrame(animar);
     }
 
-    // Se puede arrastrar desde cualquier parte de la página
+    // Arrastrar: mover la cámara alrededor del rectángulo
+    let arrastrando = false, ultimoX = 0, ultimoY = 0;
+
     document.addEventListener('pointerdown', e => {
       arrastrando = true;
-      girarSolo = false;
       ultimoX = e.clientX;
       ultimoY = e.clientY;
       document.body.classList.add('arrastrando');
@@ -163,11 +189,13 @@
 
     document.addEventListener('pointermove', e => {
       if (!arrastrando) return;
-      rotY += (e.clientX - ultimoX) * 0.5;
-      rotX -= (e.clientY - ultimoY) * 0.5;
+      objetivo.giro += (e.clientX - ultimoX) * 0.4;
+      objetivo.inclinacion = limitar(
+        objetivo.inclinacion - (e.clientY - ultimoY) * 0.3,
+        LIMITES.inclinacion
+      );
       ultimoX = e.clientX;
       ultimoY = e.clientY;
-      dibujar();
     });
 
     function soltar() {
@@ -177,7 +205,15 @@
     document.addEventListener('pointerup', soltar);
     document.addEventListener('pointercancel', soltar);
 
-    dibujar();
+    // Rueda del mouse: acercar o alejar la cámara
+    document.addEventListener('wheel', e => {
+      e.preventDefault();
+      objetivo.distancia = limitar(
+        objetivo.distancia + e.deltaY * 0.8,
+        LIMITES.distancia
+      );
+    }, { passive: false });
+
     animar();
   </script>
 </body>
