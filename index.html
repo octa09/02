@@ -36,24 +36,28 @@
        la "cámara" se controla con el mouse desde el script. */
     .mundo {
       position: relative;
+      will-change: transform;
       width: 0;
       height: 0;
       transform-style: preserve-3d;
     }
 
-    /* Piso plano grande con cuadrícula, que se pierde a lo lejos */
+    /* Piso plano grande con cuadrícula, que se pierde a lo lejos.
+       Se dibuja a la mitad de tamaño y se agranda x2: se ve igual
+       pero cuesta mucho menos y la página va más fluida. */
     .piso {
       position: absolute;
-      width: var(--piso);
-      height: var(--piso);
-      left: calc(var(--piso) / -2);
-      top: calc(var(--piso) / -2);
-      transform: rotateX(90deg);
+      width: calc(var(--piso) / 2);
+      height: calc(var(--piso) / 2);
+      left: calc(var(--piso) / -4);
+      top: calc(var(--piso) / -4);
+      transform: rotateX(90deg) scale(2);
+      will-change: transform;
       background-color: #dcd6ee;
       background-image:
-        linear-gradient(#c3b9e3 1px, transparent 1px),
-        linear-gradient(90deg, #c3b9e3 1px, transparent 1px);
-      background-size: 50px 50px;
+        linear-gradient(#cbc2e8 1px, transparent 1px),
+        linear-gradient(90deg, #cbc2e8 1px, transparent 1px);
+      background-size: 25px 25px;
       background-position: center;
       -webkit-mask-image: radial-gradient(circle, #000 12%, transparent 45%);
               mask-image: radial-gradient(circle, #000 12%, transparent 45%);
@@ -61,6 +65,7 @@
 
     .jugador {
       position: absolute;
+      will-change: transform;
       width: 0;
       height: 0;
       transform-style: preserve-3d;
@@ -159,6 +164,14 @@
     const mundo = document.querySelector('.mundo');
     const ALTO = 260; // igual que --alto
 
+    // ===== Ajustes (cámbialos a gusto) =====
+    const SENSIBILIDAD   = 0.25;  // grados que gira la cámara por cada píxel que arrastras
+    const SUAVIDAD_CAM   = 14;    // más alto = la cámara responde más rápido
+    const SUAVIDAD_SEGUIR = 8;    // qué tan rápido la cámara alcanza al rectángulo
+    const VELOCIDAD      = 320;   // velocidad máxima del rectángulo (píxeles por segundo)
+    const ACELERACION    = 10;    // qué tan rápido arranca y frena
+    const BORDE          = 1500;  // no salir del piso
+
     // Cámara que orbita alrededor del rectángulo y siempre lo mira.
     // "objetivo" es hacia donde va la cámara; "actual" la sigue suavemente.
     const objetivo = { giro: -30, inclinacion: -15, distancia: 500 };
@@ -170,11 +183,15 @@
     };
     const limitar = (v, [min, max]) => Math.max(min, Math.min(max, v));
 
+    // Acerca "valor" a "meta" de forma suave, igual sin importar los FPS
+    const suavizar = (valor, meta, rapidez, dt) =>
+      valor + (meta - valor) * (1 - Math.exp(-rapidez * dt));
+
     // ---- Movimiento del rectángulo con W A S D ----
     const jugador = document.querySelector('.jugador');
-    const pos = { x: 0, z: 0 };   // posición sobre el piso
-    const VELOCIDAD = 320;        // píxeles por segundo
-    const BORDE = 1500;           // no salir del piso
+    const pos = { x: 0, z: 0 };     // posición del rectángulo sobre el piso
+    const vel = { x: 0, z: 0 };     // velocidad actual (para arrancar y frenar suave)
+    const camPos = { x: 0, z: 0 };  // punto que mira la cámara (sigue al rectángulo)
     const teclas = new Set();
 
     const TECLAS_MOVER = ['KeyW', 'KeyA', 'KeyS', 'KeyD'];
@@ -195,31 +212,37 @@
       if (teclas.has('KeyS')) adelante -= 1;
       if (teclas.has('KeyD')) derecha  += 1;
       if (teclas.has('KeyA')) derecha  -= 1;
-      if (!adelante && !derecha) return;
 
       // En diagonal no debe ir más rápido que en línea recta
-      const largo = Math.hypot(adelante, derecha);
+      const largo = Math.hypot(adelante, derecha) || 1;
       adelante /= largo;
       derecha  /= largo;
 
       // "Adelante" es hacia donde mira la cámara
       const g = actual.giro * Math.PI / 180;
-      const dx = Math.sin(g) * adelante + Math.cos(g) * derecha;
-      const dz = -Math.cos(g) * adelante + Math.sin(g) * derecha;
+      const metaX = (Math.sin(g) * adelante + Math.cos(g) * derecha) * VELOCIDAD;
+      const metaZ = (-Math.cos(g) * adelante + Math.sin(g) * derecha) * VELOCIDAD;
 
-      pos.x = limitar(pos.x + dx * VELOCIDAD * dt, [-BORDE, BORDE]);
-      pos.z = limitar(pos.z + dz * VELOCIDAD * dt, [-BORDE, BORDE]);
+      // Acelerar o frenar suavemente hacia esa velocidad
+      vel.x = suavizar(vel.x, metaX, ACELERACION, dt);
+      vel.z = suavizar(vel.z, metaZ, ACELERACION, dt);
+
+      pos.x = limitar(pos.x + vel.x * dt, [-BORDE, BORDE]);
+      pos.z = limitar(pos.z + vel.z * dt, [-BORDE, BORDE]);
+
+      // La cámara sigue al rectángulo con un pequeño retraso
+      camPos.x = suavizar(camPos.x, pos.x, SUAVIDAD_SEGUIR, dt);
+      camPos.z = suavizar(camPos.z, pos.z, SUAVIDAD_SEGUIR, dt);
     }
 
     function dibujar() {
       jugador.style.transform = `translate3d(${pos.x}px, 0, ${pos.z}px)`;
       // Mover la cámara equivale a mover el mundo al revés frente a ella.
-      // La cámara sigue al rectángulo y lo mira al centro.
       mundo.style.transform =
         `translateZ(${-actual.distancia}px)` +
         ` rotateX(${actual.inclinacion}deg)` +
         ` rotateY(${actual.giro}deg)` +
-        ` translate3d(${-pos.x}px, ${ALTO / 2}px, ${-pos.z}px)`;
+        ` translate3d(${-camPos.x}px, ${ALTO / 2}px, ${-camPos.z}px)`;
     }
 
     let antes = performance.now();
@@ -227,7 +250,7 @@
       const dt = Math.min((ahora - antes) / 1000, 0.05);
       antes = ahora;
       for (const k of ['giro', 'inclinacion', 'distancia']) {
-        actual[k] += (objetivo[k] - actual[k]) * 0.15;
+        actual[k] = suavizar(actual[k], objetivo[k], SUAVIDAD_CAM, dt);
       }
       moverJugador(dt);
       dibujar();
@@ -235,24 +258,21 @@
     }
 
     // Arrastrar: mover la cámara alrededor del rectángulo
-    let arrastrando = false, ultimoX = 0, ultimoY = 0;
+    let arrastrando = false;
 
     document.addEventListener('pointerdown', e => {
       arrastrando = true;
-      ultimoX = e.clientX;
-      ultimoY = e.clientY;
+      document.body.setPointerCapture(e.pointerId); // no se corta si sales de la ventana
       document.body.classList.add('arrastrando');
     });
 
     document.addEventListener('pointermove', e => {
       if (!arrastrando) return;
-      objetivo.giro += (e.clientX - ultimoX) * 0.4;
+      objetivo.giro += e.movementX * SENSIBILIDAD;
       objetivo.inclinacion = limitar(
-        objetivo.inclinacion - (e.clientY - ultimoY) * 0.3,
+        objetivo.inclinacion - e.movementY * SENSIBILIDAD * 0.8,
         LIMITES.inclinacion
       );
-      ultimoX = e.clientX;
-      ultimoY = e.clientY;
     });
 
     function soltar() {
@@ -262,11 +282,12 @@
     document.addEventListener('pointerup', soltar);
     document.addEventListener('pointercancel', soltar);
 
-    // Rueda del mouse: acercar o alejar la cámara
+    // Rueda del mouse: acercar o alejar (proporcional, se siente parejo)
     document.addEventListener('wheel', e => {
       e.preventDefault();
+      const paso = Math.max(-1, Math.min(1, e.deltaY / 100));
       objetivo.distancia = limitar(
-        objetivo.distancia + e.deltaY * 0.8,
+        objetivo.distancia * (1 + paso * 0.15),
         LIMITES.distancia
       );
     }, { passive: false });
