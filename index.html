@@ -6,10 +6,11 @@
   <title>02</title>
   <style>
     :root {
-      /* Rectángulo vertical */
-      --ancho: 120px;
-      --alto: 260px;
-      --fondo: 80px;
+      /* Tamaño de cada cubito del personaje */
+      --voxel: 16px;
+      /* Huella de la sombra en el piso */
+      --ancho: 140px;
+      --fondo: 110px;
       /* Tamaño del piso */
       --piso: 5000px;
     }
@@ -85,64 +86,23 @@
     }
 
     /* El rectángulo, parado con la base sobre el piso */
-    .rectangulo {
+    /* El personaje: se arma con cubitos (voxels) desde el script */
+    .personaje {
       position: absolute;
-      width: var(--ancho);
-      height: var(--alto);
-      left: calc(var(--ancho) / -2);
-      top: calc(var(--alto) * -1);
+      width: 0;
+      height: 0;
       transform-style: preserve-3d;
     }
 
-    .cara {
+    .voxel {
       position: absolute;
-      left: 50%;
-      top: 50%;
-      border: 2px solid #3b2a6b;
-      box-sizing: border-box;
+      width: var(--voxel);
+      height: var(--voxel);
+      left: calc(var(--voxel) / -2);
+      top: calc(var(--voxel) / -2);
+      backface-visibility: hidden;
+      box-shadow: inset 0 0 0 1px rgba(30, 10, 70, 0.10);
     }
-
-    .frente, .atras {
-      width: var(--ancho);
-      height: var(--alto);
-      margin-left: calc(var(--ancho) / -2);
-      margin-top: calc(var(--alto) / -2);
-    }
-    .frente { background: #7b5cd6; transform: translateZ(calc(var(--fondo) / 2)); }
-
-    /* Ojos en la cara de adelante, para saber hacia dónde mira */
-    .frente::before,
-    .frente::after {
-      content: '';
-      position: absolute;
-      top: 22%;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: #fff;
-      box-shadow: inset 0 0 0 5px #fff, inset 0 0 0 18px #2a1d52;
-    }
-    .frente::before { left: 26%; }
-    .frente::after  { right: 26%; }
-    .atras  { background: #5a3fb0; transform: rotateY(180deg) translateZ(calc(var(--fondo) / 2)); }
-
-    .derecha, .izquierda {
-      width: var(--fondo);
-      height: var(--alto);
-      margin-left: calc(var(--fondo) / -2);
-      margin-top: calc(var(--alto) / -2);
-    }
-    .derecha   { background: #6a4cc4; transform: rotateY(90deg)  translateZ(calc(var(--ancho) / 2)); }
-    .izquierda { background: #6a4cc4; transform: rotateY(-90deg) translateZ(calc(var(--ancho) / 2)); }
-
-    .arriba, .abajo {
-      width: var(--ancho);
-      height: var(--fondo);
-      margin-left: calc(var(--ancho) / -2);
-      margin-top: calc(var(--fondo) / -2);
-    }
-    .arriba { background: #9a80e8; transform: rotateX(90deg)  translateZ(calc(var(--alto) / 2)); }
-    .abajo  { background: #4a3296; transform: rotateX(-90deg) translateZ(calc(var(--alto) / 2)); }
 
     .ayuda {
       position: fixed;
@@ -159,17 +119,10 @@
 <body>
   <div class="mundo">
     <div class="piso"></div>
-    <!-- El jugador: rectángulo + su sombra, se mueven juntos -->
+    <!-- El jugador: personaje + su sombra, se mueven juntos -->
     <div class="jugador">
       <div class="sombra"></div>
-      <div class="rectangulo">
-        <div class="cara frente"></div>
-        <div class="cara atras"></div>
-        <div class="cara derecha"></div>
-        <div class="cara izquierda"></div>
-        <div class="cara arriba"></div>
-        <div class="cara abajo"></div>
-      </div>
+      <div class="personaje"></div>
     </div>
   </div>
 
@@ -177,7 +130,118 @@
 
   <script>
     const mundo = document.querySelector('.mundo');
-    const ALTO = 260; // igual que --alto
+    // ================= EL PERSONAJE (hecho de cubitos) =================
+    // Para cambiar su forma, edita la función crearForma().
+    const VOXEL = 16; // igual que --voxel
+
+    const COLORES = {
+      cuerpo:  '#7b5cd6',
+      panza:   '#a48cf0',
+      ojo:     '#241a45',
+      brillo:  '#ffffff',
+      mejilla: '#f09ac4',
+      pies:    '#4a3296',
+      antena:  '#4a3296',
+      bola:    '#ffd166',
+    };
+
+    function crearForma() {
+      const v = new Map();  // "x,y,z" -> color
+      const poner = (x, y, z, color) => v.set(`${x},${y},${z}`, color);
+      const hay = (x, y, z) => v.has(`${x},${y},${z}`);
+
+      // Cuerpo con forma de huevo (elipsoide)
+      const centro = 8.5, rx = 4.6, ry = 6.4, rz = 3.7;
+      for (let y = 0; y <= 16; y++)
+        for (let x = -5; x <= 5; x++)
+          for (let z = -4; z <= 4; z++) {
+            const d = (x / rx) ** 2 + ((y + 0.5 - centro) / ry) ** 2 + (z / rz) ** 2;
+            if (d <= 1) poner(x, y, z, COLORES.cuerpo);
+          }
+
+      // Patitas
+      for (const px of [-3, -2, 2, 3])
+        for (const z of [-1, 0, 1])
+          for (const y of [0, 1]) poner(px, y, z, COLORES.pies);
+
+      // Bracitos
+      for (const lado of [-1, 1])
+        for (const y of [6, 7, 8])
+          for (const z of [-1, 0]) poner(lado * 5, y, z, COLORES.cuerpo);
+      for (const lado of [-1, 1]) poner(lado * 6, 6, 0, COLORES.cuerpo);
+
+      // Lo que está "más adelante" del cuerpo en una columna (cara frontal = +z)
+      const frente = (x, y) => { for (let z = 6; z >= -6; z--) if (hay(x, y, z)) return z; return null; };
+
+      // Panza más clara
+      for (let y = 4; y <= 8; y++)
+        for (let x = -2; x <= 2; x++) {
+          const z = frente(x, y);
+          if (z !== null && Math.abs(x) + Math.abs(y - 6) <= 3) poner(x, y, z, COLORES.panza);
+        }
+
+      // Ojos (2 de alto) con un brillito
+      for (const lado of [-1, 1]) {
+        const x = lado * 2;
+        for (const y of [10, 11]) poner(x, y, frente(x, y), COLORES.ojo);
+        poner(x, 11, frente(x, 11), COLORES.brillo);
+      }
+
+      // Mejillas
+      for (const lado of [-1, 1]) poner(lado * 3, 9, frente(lado * 3, 9), COLORES.mejilla);
+
+      // Antena con bolita
+      const tope = Math.max(...[...v.keys()].map(k => +k.split(',')[1]));
+      poner(0, tope + 1, 0, COLORES.antena);
+      poner(0, tope + 2, 0, COLORES.antena);
+      const by = tope + 4;
+      for (const [dx, dy, dz] of [[0,0,0],[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]])
+        poner(dx, by + dy, dz, COLORES.bola);
+
+      return v;
+    }
+
+    // Oscurece o aclara un color para dar volumen según hacia dónde mira cada cara
+    function tono(hex, f) {
+      const n = parseInt(hex.slice(1), 16);
+      const c = [n >> 16, (n >> 8) & 255, n & 255].map(x => Math.min(255, Math.round(x * f)));
+      return `rgb(${c[0]},${c[1]},${c[2]})`;
+    }
+
+    // Arma el personaje dibujando solo las caras de los cubitos que se ven
+    function construirPersonaje(contenedor) {
+      const forma = crearForma();
+      const h = VOXEL / 2;
+      const CARAS = [
+        // [vecino,      luz,  transform extra]
+        [[0, 0, 1],  1.00, (x, y, z) => `translate3d(${x}px,${y}px,${z + h}px)`],
+        [[0, 0, -1], 0.80, (x, y, z) => `translate3d(${x}px,${y}px,${z - h}px) rotateY(180deg)`],
+        [[1, 0, 0],  0.88, (x, y, z) => `translate3d(${x + h}px,${y}px,${z}px) rotateY(90deg)`],
+        [[-1, 0, 0], 0.88, (x, y, z) => `translate3d(${x - h}px,${y}px,${z}px) rotateY(-90deg)`],
+        [[0, 1, 0],  1.18, (x, y, z) => `translate3d(${x}px,${y - h}px,${z}px) rotateX(90deg)`],
+        [[0, -1, 0], 0.60, (x, y, z) => `translate3d(${x}px,${y + h}px,${z}px) rotateX(-90deg)`],
+      ];
+      const frag = document.createDocumentFragment();
+      let maxY = 0;
+      for (const [clave, color] of forma) {
+        const [vx, vy, vz] = clave.split(',').map(Number);
+        maxY = Math.max(maxY, vy);
+        // posición del centro del cubito (en CSS, "arriba" es y negativo)
+        const x = vx * VOXEL, y = -(vy + 0.5) * VOXEL, z = vz * VOXEL;
+        for (const [[dx, dy, dz], luz, mover] of CARAS) {
+          if (forma.has(`${vx + dx},${vy + dy},${vz + dz}`)) continue; // cara escondida
+          const cara = document.createElement('div');
+          cara.className = 'voxel';
+          cara.style.background = tono(color, luz);
+          cara.style.transform = mover(x, y, z);
+          frag.appendChild(cara);
+        }
+      }
+      contenedor.appendChild(frag);
+      return (maxY + 1) * VOXEL; // altura total
+    }
+
+    const ALTO = construirPersonaje(document.querySelector('.personaje'));
 
     // ===== Ajustes (cámbialos a gusto) =====
     const SENSIBILIDAD   = 0.25;  // grados que gira la cámara por cada píxel que arrastras
@@ -215,7 +279,7 @@
     let orientacion = 0;            // hacia dónde mira la cara de adelante (en radianes)
     let altura = 0;                 // qué tan arriba del piso está (0 = en el piso)
     let velY = 0;                   // velocidad vertical del salto
-    const rectangulo = document.querySelector('.rectangulo');
+    const personaje = document.querySelector('.personaje');
     const sombra = document.querySelector('.sombra');
     const teclas = new Set();
 
@@ -297,7 +361,7 @@
     }
 
     function dibujar() {
-      rectangulo.style.transform = `translateY(${-altura}px)`;
+      personaje.style.transform = `translateY(${-altura}px)`;
       // La sombra queda en el piso: más chica y suave mientras más alto salta
       const lejos = Math.min(altura / 200, 1);
       sombra.style.transform =
