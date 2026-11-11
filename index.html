@@ -59,6 +59,13 @@
               mask-image: radial-gradient(circle, #000 12%, transparent 45%);
     }
 
+    .jugador {
+      position: absolute;
+      width: 0;
+      height: 0;
+      transform-style: preserve-3d;
+    }
+
     /* Sombra suave en el piso, debajo del rectángulo */
     .sombra {
       position: absolute;
@@ -132,18 +139,21 @@
 <body>
   <div class="mundo">
     <div class="piso"></div>
-    <div class="sombra"></div>
-    <div class="rectangulo">
-      <div class="cara frente"></div>
-      <div class="cara atras"></div>
-      <div class="cara derecha"></div>
-      <div class="cara izquierda"></div>
-      <div class="cara arriba"></div>
-      <div class="cara abajo"></div>
+    <!-- El jugador: rectángulo + su sombra, se mueven juntos -->
+    <div class="jugador">
+      <div class="sombra"></div>
+      <div class="rectangulo">
+        <div class="cara frente"></div>
+        <div class="cara atras"></div>
+        <div class="cara derecha"></div>
+        <div class="cara izquierda"></div>
+        <div class="cara arriba"></div>
+        <div class="cara abajo"></div>
+      </div>
     </div>
   </div>
 
-  <div class="ayuda">Arrastra para mover la cámara · Rueda del mouse para acercar o alejar</div>
+  <div class="ayuda">W A S D para mover el rectángulo · Arrastra para mover la cámara · Rueda para acercar o alejar</div>
 
   <script>
     const mundo = document.querySelector('.mundo');
@@ -160,19 +170,66 @@
     };
     const limitar = (v, [min, max]) => Math.max(min, Math.min(max, v));
 
+    // ---- Movimiento del rectángulo con W A S D ----
+    const jugador = document.querySelector('.jugador');
+    const pos = { x: 0, z: 0 };   // posición sobre el piso
+    const VELOCIDAD = 320;        // píxeles por segundo
+    const BORDE = 1500;           // no salir del piso
+    const teclas = new Set();
+
+    const TECLAS_MOVER = ['KeyW', 'KeyA', 'KeyS', 'KeyD'];
+    document.addEventListener('keydown', e => {
+      if (TECLAS_MOVER.includes(e.code)) {
+        teclas.add(e.code);
+        e.preventDefault();
+      }
+    });
+    document.addEventListener('keyup', e => teclas.delete(e.code));
+    // Si cambias de ventana con una tecla apretada, que no se quede caminando solo
+    window.addEventListener('blur', () => teclas.clear());
+
+    function moverJugador(dt) {
+      // Dirección según las teclas apretadas (se pueden combinar)
+      let adelante = 0, derecha = 0;
+      if (teclas.has('KeyW')) adelante += 1;
+      if (teclas.has('KeyS')) adelante -= 1;
+      if (teclas.has('KeyD')) derecha  += 1;
+      if (teclas.has('KeyA')) derecha  -= 1;
+      if (!adelante && !derecha) return;
+
+      // En diagonal no debe ir más rápido que en línea recta
+      const largo = Math.hypot(adelante, derecha);
+      adelante /= largo;
+      derecha  /= largo;
+
+      // "Adelante" es hacia donde mira la cámara
+      const g = actual.giro * Math.PI / 180;
+      const dx = Math.sin(g) * adelante + Math.cos(g) * derecha;
+      const dz = -Math.cos(g) * adelante + Math.sin(g) * derecha;
+
+      pos.x = limitar(pos.x + dx * VELOCIDAD * dt, [-BORDE, BORDE]);
+      pos.z = limitar(pos.z + dz * VELOCIDAD * dt, [-BORDE, BORDE]);
+    }
+
     function dibujar() {
+      jugador.style.transform = `translate3d(${pos.x}px, 0, ${pos.z}px)`;
       // Mover la cámara equivale a mover el mundo al revés frente a ella.
+      // La cámara sigue al rectángulo y lo mira al centro.
       mundo.style.transform =
         `translateZ(${-actual.distancia}px)` +
         ` rotateX(${actual.inclinacion}deg)` +
         ` rotateY(${actual.giro}deg)` +
-        ` translateY(${ALTO / 2}px)`; // mirar al centro del rectángulo
+        ` translate3d(${-pos.x}px, ${ALTO / 2}px, ${-pos.z}px)`;
     }
 
-    function animar() {
+    let antes = performance.now();
+    function animar(ahora) {
+      const dt = Math.min((ahora - antes) / 1000, 0.05);
+      antes = ahora;
       for (const k of ['giro', 'inclinacion', 'distancia']) {
         actual[k] += (objetivo[k] - actual[k]) * 0.15;
       }
+      moverJugador(dt);
       dibujar();
       requestAnimationFrame(animar);
     }
@@ -214,7 +271,7 @@
       );
     }, { passive: false });
 
-    animar();
+    requestAnimationFrame(animar);
   </script>
 </body>
 </html>
