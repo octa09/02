@@ -4,7 +4,90 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>02</title>
+  <style>
+    :root {
+      --ancho: 240px;
+      --alto: 140px;
+      --fondo: 100px;
+    }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f4f4f8;
+      perspective: 900px;
+    }
+
+    .caja {
+      position: relative;
+      width: var(--ancho);
+      height: var(--alto);
+      transform-style: preserve-3d;
+      animation: girar 12s linear infinite;
+    }
+
+    .cara {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      border: 2px solid #3b2a6b;
+      box-sizing: border-box;
+    }
+
+    /* Caras grandes: frente y atrás */
+    .frente, .atras {
+      width: var(--ancho);
+      height: var(--alto);
+      margin-left: calc(var(--ancho) / -2);
+      margin-top: calc(var(--alto) / -2);
+    }
+    .frente { background: #7b5cd6; transform: translateZ(calc(var(--fondo) / 2)); }
+    .atras  { background: #5a3fb0; transform: rotateY(180deg) translateZ(calc(var(--fondo) / 2)); }
+
+    /* Caras laterales: derecha e izquierda */
+    .derecha, .izquierda {
+      width: var(--fondo);
+      height: var(--alto);
+      margin-left: calc(var(--fondo) / -2);
+      margin-top: calc(var(--alto) / -2);
+    }
+    .derecha   { background: #6a4cc4; transform: rotateY(90deg)  translateZ(calc(var(--ancho) / 2)); }
+    .izquierda { background: #6a4cc4; transform: rotateY(-90deg) translateZ(calc(var(--ancho) / 2)); }
+
+    /* Caras de arriba y abajo */
+    .arriba, .abajo {
+      width: var(--ancho);
+      height: var(--fondo);
+      margin-left: calc(var(--ancho) / -2);
+      margin-top: calc(var(--fondo) / -2);
+    }
+    .arriba { background: #9a80e8; transform: rotateX(90deg)  translateZ(calc(var(--alto) / 2)); }
+    .abajo  { background: #4a3296; transform: rotateX(-90deg) translateZ(calc(var(--alto) / 2)); }
+
+    @keyframes girar {
+      from { transform: rotateX(-20deg) rotateY(0deg); }
+      to   { transform: rotateX(-20deg) rotateY(360deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .caja { animation: none; transform: rotateX(-20deg) rotateY(-30deg); }
+    }
+  </style>
 </head>
 <body>
+  <div class="caja">
+    <div class="cara frente"></div>
+    <div class="cara atras"></div>
+    <div class="cara derecha"></div>
+    <div class="cara izquierda"></div>
+    <div class="cara arriba"></div>
+    <div class="cara abajo"></div>
+  </div>
 </body>
 </html>
