@@ -74,6 +74,18 @@
       background-position: center;
     }
     .techo.dos { background: radial-gradient(circle at 50% 50%, #fff4dc 0%, #dfe3cf 25%, #98a08a 100%); }
+    /* Habitación 3 (la pieza del pequeño): paredes durazno y alfombra celeste */
+    .piso.tres {
+      background:
+        radial-gradient(circle at 30% 70%, rgba(255, 255, 255, 0.25) 0 8%, transparent 9%),
+        radial-gradient(circle at 50% 50%, #a9d4e6 0%, #8cc0d6 55%, #6a9fb6 100%);
+    }
+    .techo.tres { background: radial-gradient(circle at 50% 50%, #fff6e2 0%, #f3e2cf 25%, #b9a38e 100%); }
+    .pared.tres {
+      background:
+        radial-gradient(ellipse 70% 90% at 50% 0%, rgba(255, 236, 200, 0.5), rgba(255, 236, 200, 0) 70%),
+        linear-gradient(#f6dcc6, #ecc8ac 70%, #d9b394);
+    }
     .pared.dos {
       background:
         radial-gradient(ellipse 70% 90% at 50% 0%, rgba(255, 236, 200, 0.45), rgba(255, 236, 200, 0) 70%),
@@ -159,14 +171,15 @@
 
   <canvas id="pelota"></canvas>
 
-  <div class="ayuda">W A S D: mover · Espacio: saltar · Arrastrar o flechas: cámara · Rueda: zoom · Clic en él: un golpecito · Clic en un cubo: patearlo · Botón rojo: más cubos · Botón azul: volver a empezar · Shift: correr · Botón morado: borrar los dibujos · Déjalo solo y hace su vida</div>
+  <div class="ayuda">W A S D: mover · Espacio: saltar · Arrastrar o flechas: cámara · Rueda: zoom · Clic en él: un golpecito · Clic en un cubo: patearlo · Botón rojo: más cubos · Botón azul: volver a empezar · Shift: correr · 1 / 2: controlar al grande / al pequeño · Botón morado: borrar los dibujos · Déjalo solo y hace su vida</div>
   <div class="animo">curioso</div>
 
   <script>
     const mundo = document.querySelector('.mundo');
-    const jugador = document.querySelector('.jugador');
-    const personaje = document.querySelector('.personaje');
-    const sombra = document.querySelector('.sombra');
+    // (estas tres apuntan al personaje que está "cargado"; ver más abajo LOS PERSONAJES)
+    let jugador = document.querySelector('.jugador');
+    let personaje = document.querySelector('.personaje');
+    let sombra = document.querySelector('.sombra');
 
     // ===================== EL PERSONAJE =====================
     // De abajo hacia arriba: dos pies gruesos, un cubo y un rectángulo alto.
@@ -449,7 +462,7 @@
     }
 
     // Movimiento del mechón: un resorte que sigue a una meta, con un poco de rebote
-    const pelo = { curva: 1, vCurva: 0, atras: 0, vAtras: 0, t: 0 };
+    let pelo = { curva: 1, vCurva: 0, atras: 0, vAtras: 0, t: 0 };
     function moverPelo(dt) {
       pelo.t += dt;
       const rapidez = Math.min(Math.hypot(vel.x, vel.z) / VELOCIDAD, 1);
@@ -511,13 +524,25 @@
     // ---- La casa ----
     const ALTO_CUARTO = 760;   // alto de las paredes
     const CUARTOS = [
-      { x0: -700, x1: 700,  z0: -700, z1: 700, clase: '' },     // habitación 1
-      { x0: 700,  x1: 1700, z0: -700, z1: 700, clase: 'dos' },  // habitación 2
+      { x0: -700, x1: 700,  z0: -700, z1: 700, clase: '' },      // habitación 1 (la principal)
+      { x0: 700,  x1: 1700, z0: -700, z1: 700, clase: 'dos' },   // habitación 2 (la verde)
+      { x0: 1700, x1: 2400, z0: 100,  z1: 700, clase: 'tres' },  // habitación 3: la pieza del pequeño
     ];
     for (const c of CUARTOS) c.luz = [(c.x0 + c.x1) / 2, -(ALTO_CUARTO - 40), (c.z0 + c.z1) / 2];
-    const PUERTA = { x: 700, z0: -150, z1: 150, alto: 440 };   // en la pared que comparten
+    // Puertas: cada una está en un muro (x) entre dos habitaciones (a a la izquierda, b a la derecha).
+    // La de la pieza del pequeño es chiquita: el grande no cabe.
+    const PUERTAS = [
+      { x: 700,  z0: -150, z1: 150, alto: 440, a: 0, b: 1, holgura: 75 },
+      { x: 1700, z0: 200,  z1: 320, alto: 300, a: 1, b: 2, holgura: 40, soloChico: true },
+    ];
+    for (const d of PUERTAS) {
+      d.hoja = { ang: 0, v: 0, lado: 1, cerca: false };
+      d.zMin = Math.min(CUARTOS[d.a].z0, CUARTOS[d.b].z0);
+      d.zMax = Math.max(CUARTOS[d.a].z1, CUARTOS[d.b].z1);
+    }
+    const PUERTA = PUERTAS[0];
     const MARGEN = 130;        // qué tan cerca de la pared puede llegar el personaje
-    const HOLGURA_PUERTA = 75; // medio ancho del personaje al pasar por la puerta
+    const cabeEn = d => !d.soloChico || yo.escala < 0.8;   // ¿el que está cargado cabe por esa puerta?
     const GIRO_FLECHAS    = 100;
     const ALTURA_FLECHAS  = 60;
     const GIRO_CUERPO     = 12;
@@ -539,21 +564,21 @@
       valor + (meta - valor) * (1 - Math.exp(-rapidez * dt));
     const azarEntre = (a, b) => a + Math.random() * (b - a);
 
-    // Zonas donde puede pararse: cada habitación (sin pegarse a las paredes) y el paso de la puerta
-    const ZONAS = [
-      ...CUARTOS.map(c => [c.x0 + MARGEN, c.x1 - MARGEN, c.z0 + MARGEN, c.z1 - MARGEN]),
-      [PUERTA.x - MARGEN - 60, PUERTA.x + MARGEN + 60, PUERTA.z0 + HOLGURA_PUERTA, PUERTA.z1 - HOLGURA_PUERTA],
-    ];
-    const PASO_PUERTA = ZONAS[ZONAS.length - 1];
+    // Zonas donde puede pararse: cada habitación (sin pegarse a las paredes) y el paso de cada puerta
+    const ZONAS = CUARTOS.map(c => [c.x0 + MARGEN, c.x1 - MARGEN, c.z0 + MARGEN, c.z1 - MARGEN]);
+    for (const d of PUERTAS) d.paso = [d.x - MARGEN - 60, d.x + MARGEN + 60, d.z0 + d.holgura, d.z1 - d.holgura];
+    const dentroDe = (r, x, z) => x >= r[0] && x <= r[1] && z >= r[2] && z <= r[3];
     const libre = (x, z) =>
-      ZONAS.some(z4 => (z4 !== PASO_PUERTA || puertaAbierta()) && x >= z4[0] && x <= z4[1] && z >= z4[2] && z <= z4[3]) &&
+      (ZONAS.some(r => dentroDe(r, x, z)) || PUERTAS.some(d => d.hoja.ang > 60 && cabeEn(d) && dentroDe(d.paso, x, z))) &&
       !OBSTACULOS.some(([a, b, c, d]) => x > a && x < b && z > c && z < d);
-    const cuartoDe = x => x < PUERTA.x ? 0 : 1;
+    const cuartoDe = x => x < 700 ? 0 : x < 1700 ? 1 : 2;
+    // a qué habitaciones puede ir el que está cargado (el grande no cabe en la pieza del pequeño)
+    const cuartosPosibles = () => CUARTOS.filter((c, i) => i < 2 || yo.escala < 0.8);
     const dentroDelCuarto = (c, x, z) =>
       [limitar(x, [c.x0 + MARGEN, c.x1 - MARGEN]), 0, limitar(z, [c.z0 + MARGEN, c.z1 - MARGEN])];
 
-    const pos = { x: 0, z: 0 };
-    const vel = { x: 0, z: 0 };
+    let pos = { x: 0, z: 0 };
+    let vel = { x: 0, z: 0 };
     const camPos = { x: 0, z: 0 };
     let orientacion = 0;
     let altura = 0, velY = 0;
@@ -564,7 +589,7 @@
     // =====================================================================
     //  LA MENTE: ánimo, acciones y reacciones
     // =====================================================================
-    const mente = {
+    const menteNueva = () => ({
       animo: 'curioso', tAnimo: 20,
       accion: 'quieto', tAccion: 1.5,
       meta: null,            // a dónde camina
@@ -591,16 +616,19 @@
       recientes: [],         // lo último que hizo (no le gusta repetir tanto)
       ultimo: null,
       corre: false,          // si decide ir corriendo
-    };
+      animos: { curioso: 2, tranquilo: 2, aburrido: 1.2 },   // qué tan seguido tiene cada ánimo
+    });
+    let mente = menteNueva();
 
     // Golpe con el mouse: el cuerpo se tambalea como un resorte
-    const golpe = {
+    const golpeNuevo = () => ({
       tx: 0, vx: 0, tz: 0, vz: 0,   // tambaleo del cuerpo (grados)
       cab: 0, vCab: 0, lado: 1,      // sacudida de la cabeza
       empuje: [0, 0],                // lo que lo desliza por el piso
       t: 0,                          // tiempo que dura la reacción
       veces: [],
-    };
+    });
+    let golpe = golpeNuevo();
 
     // Qué le dan ganas de hacer según su ánimo (más número = más seguido)
     const GANAS = {
@@ -624,14 +652,10 @@
     }
 
     function nuevaAccion() {
-      if (mente.despues === 'celebrar') { mente.despues = null; celebrar(); return; }
-      if (mente.despues === 'encestar') {   // sigue tirando hasta que entre (o se enoje)
-        mente.despues = null;
-        Object.assign(mente, { accion: 'encestar', meta: null, ruta: [], mirarA: null, giroForzado: null, saltosPend: 0 });
-        empezarJuego('encestar');
-        return;
-      }
+      // lo que había quedado pendiente (celebrar, seguir tirando al aro, perseguir al otro...)
+      const pendiente = mente.despues;
       mente.despues = null;
+      if (pendiente === 'celebrar') { celebrar(); return; }
       if (mente.molesto > 0 && mente.molestoPor === 'golpes') {
         // se aleja de la cámara (de ti)
         const l = Math.hypot(ojoAnterior[0], ojoAnterior[2]) || 1;
@@ -646,13 +670,23 @@
       const nDibujos = PAREDES_PINTABLES.reduce((n, p) => n + p.dibujos.length, 0);
       const ganas = { ...GANAS[mente.animo] };
       if (nDibujos) { ganas.borrar = 0.9; ganas.borrarTodo = nDibujos >= 7 ? 0.7 : 0.04; }
-      const a = mente.cansado > 0 && Math.random() < 0.6 ? 'dormir'
+      // con el otro: si se llevan bien, más ganas de jugar; si se llevan mal, de molestarlo
+      const o = otroDe(yo), rel = RELACION.v;
+      for (const k of ['jugarCon', 'saludarOtro', 'perseguir']) if (ganas[k]) ganas[k] *= Math.max(0.1, 1 + rel);
+      if (ganas.molestar) ganas.molestar *= Math.max(0.2, 1.2 - rel);
+      if (rel < -0.3) ganas.empujar = 0.8 * -rel;
+      if (o.mente.acostado > 0.5 || o.mente.tirado > 0.5) for (const k of ['jugarCon', 'saludarOtro', 'perseguir']) delete ganas[k];
+      if (yo.escala < 0.8) Object.assign(ganas, GANAS_DEL_CHICO);
+      // si el otro está donde no puede llegar, no lo busca
+      if (yo.escala >= 0.8 && cuartoDe(o.pos.x) === 2) for (const k of ['jugarCon', 'saludarOtro', 'perseguir', 'molestar', 'empujar']) delete ganas[k];
+      const a = pendiente ? pendiente
+              : mente.cansado > 0 && Math.random() < 0.6 ? 'dormir'
               : mente.molesto > 0 && Math.random() < 0.5 ? 'patear'      // enojado por los tiros: patea un cubo
               : elegirLibre(ganas);
       mente.ultimo = a;
       mente.recientes = [a, ...mente.recientes].slice(0, 3);
       // a veces va corriendo, sobre todo si está curioso
-      mente.corre = Math.random() < ({ curioso: 0.35, tranquilo: 0.08, aburrido: 0.12 }[mente.animo] || 0);
+      mente.corre = Math.random() < ({ curioso: 0.35, tranquilo: 0.08, aburrido: 0.12, jugueton: 0.6 }[mente.animo] || 0);
       if (PENSAMIENTOS[a] && Math.random() < 0.6 && mente.tAviso <= 0) {
         const ops = PENSAMIENTOS[a];
         mente.aviso = ops[Math.floor(Math.random() * ops.length)]; mente.tAviso = 1.8;
@@ -662,7 +696,8 @@
       switch (a) {
         case 'pasear': {
           // a veces se cambia de habitación
-          const c = Math.random() < 0.35 ? CUARTOS[1 - cuartoDe(pos.x)] : aqui;
+          const otras = cuartosPosibles().filter(c => c !== aqui);
+          const c = Math.random() < 0.35 && otras.length ? otras[Math.floor(Math.random() * otras.length)] : aqui;
           irA(dentroDelCuarto(c, azarEntre(c.x0, c.x1), azarEntre(c.z0, c.z1)));
           mente.tAccion = 16;
           break;
@@ -696,6 +731,22 @@
         case 'pintar':
           empezarPintar();
           break;
+        case 'perseguir': case 'jugarCon': case 'saludarOtro': case 'molestar': case 'empujar':
+          empezarConOtro(a);
+          break;
+        case 'suPieza':      // se va a su pieza a pasear un rato
+          irA([azarEntre(PIEZA.x0 + MARGEN, PIEZA.x1 - MARGEN), 0, azarEntre(PIEZA.z0 + MARGEN + 100, PIEZA.z1 - MARGEN)]);
+          mente.tAccion = 20;
+          break;
+        case 'juguetes':     // va al baúl a jugar con sus juguetes
+          mente.juego = { tipo: 'juguetes', fase: 'ir', t: 0 };
+          irA([(BAUL.x0 + BAUL.x1) / 2, 0, PIEZA.z0 + MARGEN + 5]);
+          mente.tAccion = 30;
+          break;
+        case 'puf':          // se sienta en su puf
+          irA([PUF[0], 0, PUF[2] - 90]);
+          mente.tAccion = 30;
+          break;
         case 'borrar':
           empezarBorrar();
           break;
@@ -706,7 +757,7 @@
           break;
         case 'sentarse': {
           // a una esquina de alguna habitación
-          const c = CUARTOS[Math.floor(Math.random() * CUARTOS.length)];
+          const posibles = cuartosPosibles(), c = posibles[Math.floor(Math.random() * posibles.length)];
           irA([Math.random() < 0.5 ? c.x0 + MARGEN + 10 : c.x1 - MARGEN - 10, 0,
                Math.random() < 0.5 ? c.z0 + MARGEN + 10 : c.z1 - MARGEN - 10]);
           mente.tAccion = 35;
@@ -717,12 +768,18 @@
 
     // Camina a un punto; si está en la otra habitación, pasa primero por la puerta
     function irA(destino) {
-      const a = cuartoDe(pos.x), b = cuartoDe(destino[0]);
+      let a = cuartoDe(pos.x);
+      const b = cuartoDe(destino[0]);
       mente.ruta = [];
-      if (a !== b) {
-        const lado = a === 0 ? -1 : 1;
-        mente.ruta.push([PUERTA.x + lado * 190, 0, 0], [PUERTA.x - lado * 190, 0, 0]);
+      // las habitaciones están en fila (1 - 2 - 3): pasa por cada puerta en el camino
+      while (a !== b) {
+        const sube = b > a, d = PUERTAS.find(p => sube ? p.a === a : p.b === a);
+        if (!cabeEn(d)) { mente.ruta = []; mente.meta = null; mente.noCabe = true; return; }   // no cabe
+        const zm = (d.z0 + d.z1) / 2, lado = sube ? -1 : 1;
+        mente.ruta.push([d.x + lado * 190, 0, zm], [d.x - lado * 190, 0, zm]);
+        a = sube ? d.b : d.a;
       }
+      mente.noCabe = false;
       mente.ruta.push(destino);
       mente.meta = mente.ruta.shift();
     }
@@ -742,8 +799,12 @@
       malabares: ['a practicar malabares'],
       dormir: ['tengo sueño...'],
       tirarse: ['no sé qué hacer...', 'mmm...'],
+      suPieza: ['me voy a mi pieza', 'a mi pieza'],
+      juguetes: ['¿dónde están mis juguetes?'],
+      puf: ['un descanso...'],
       borrar: ['eso no me gustó...', 'mejor lo arreglo'],
       borrarTodo: ['¡a empezar de nuevo!'],
+      perseguir: [], jugarCon: ['¿jugamos?'], saludarOtro: [], molestar: ['jeje...'], empujar: ['ya verás...'],
       boton: ['¡más cubos!'],
       patear: ['¡toma!'],
       cabeza: ['¿y si...?'],
@@ -751,13 +812,17 @@
 
     function celebrar() {
       gustar(mente.ultimo, 1.15);
+      const yoMismo = yo;   // el otro, si está desocupado, se queda mirando
+      conPersonaje(otroDe(yo), () => {
+        if (autonomo() && ['quieto', 'camara', 'mirarPunto', 'lampara', 'pasear', 'sentado'].includes(mente.accion)) mente.mirarA = { pj: yoMismo };
+      });
       Object.assign(mente, { accion: 'celebrar', tAccion: 2, saltosPend: 2, tSalto: 0.7, mirarA: 'camara',
                              juego: null, meta: null, ruta: [], giroForzado: null });
     }
 
     function cambiarAnimo() {
       const antes = mente.animo;
-      mente.animo = elegir({ curioso: 2, tranquilo: 2, aburrido: 1.2 });
+      mente.animo = elegir(mente.animos);
       mente.tAnimo = azarEntre(15, 30);
       if (antes !== mente.animo && mente.accion !== 'jugador') nuevaAccion();
     }
@@ -776,6 +841,9 @@
           mente.meta = mente.ruta.shift();   // siguiente tramo del camino
         } else if (mente.accion === 'dormir') {
           Object.assign(mente, { accion: 'acostarse', meta: null, tAccion: azarEntre(11, 17) });
+        } else if (mente.accion === 'puf') {
+          Object.assign(mente, { accion: 'sentado', meta: null, tAccion: azarEntre(6, 12), giroForzado: Math.PI });
+          mente.aviso = 'qué rico...'; mente.tAviso = 1.5;
         } else if (mente.accion === 'tirarse') {
           Object.assign(mente, { accion: 'tirado', meta: null, tAccion: azarEntre(4, 8), mirarA: null });
         } else if (mente.juego) {
@@ -859,6 +927,13 @@
       const j = mente.juego, c = j.cubo;
       if (j.tipo === 'pintar') { llegoPintando(j); return; }
       if (j.tipo === 'borrar') { llegoBorrando(j); return; }
+      if (j.tipo === 'juguetes') {           // frente al baúl: saca un juguete y juega
+        Object.assign(j, { fase: 'jugar', t: azarEntre(4, 8) });
+        mente.giroForzado = Math.PI;
+        mente.aviso = '¡mis juguetes!'; mente.tAviso = 1.5;
+        return;
+      }
+      if (TIPOS_CON_OTRO.includes(j.tipo)) return;
       if (j.fase === 'buscar') tomarCubo();
       else if (j.fase === 'ir') {             // frente al botón
         Object.assign(j, { fase: 'apretar', t: 0.6 });
@@ -889,7 +964,7 @@
         mente.tAccion = 2;
         return;
       }
-      c.estado = 'mano'; c.mano = 1; c.pila = 0;
+      c.estado = 'mano'; c.mano = 1; c.pila = 0; c.dueno = yo;
       if (j.tipo === 'encestar') {
         // los va apilando en la mano; cuando tiene suficientes, va al aro
         c.pila = j.carga.length;
@@ -916,7 +991,7 @@
         mente.giroForzado = orientacion + azarEntre(-2.5, 2.5);
       } else if (j.tipo === 'cabeza') {
         // se lo pone en la cabeza y camina tratando de que no se caiga
-        c.estado = 'cabeza';
+        c.estado = 'cabeza'; c.dueno = yo;
         Object.assign(j, { fase: 'equilibrio', t: azarEntre(2.5, 6) });
         mente.aviso = '¡mira, sin manos!'; mente.tAviso = 2;
         irA(dentroDelCuarto(CUARTOS[cuartoDe(pos.x)], pos.x + azarEntre(-400, 400), pos.z + azarEntre(-400, 400)));
@@ -929,6 +1004,16 @@
       const c = j.cubo;
       if (c && !CUBOS.includes(c)) { mente.juego = null; mente.tAccion = 0; return; }   // lo borró el botón azul
       j.t -= dt;
+      if (TIPOS_CON_OTRO.includes(j.tipo)) { jugandoConOtro(j, dt); return; }
+      if (j.tipo === 'juguetes') {
+        if (j.fase === 'jugar') {
+          // mueve los brazos sobre el baúl, mira adentro, y de vez en cuando da un saltito de contento
+          mente.mirarA = [(BAUL.x0 + BAUL.x1) / 2, -60, (BAUL.z0 + BAUL.z1) / 2];
+          if (Math.random() < dt * 0.4 && altura === 0) velY = 300;
+          if (j.t <= 0) { mente.tAccion = 0; mente.juego = null; }
+        }
+        return;
+      }
       if (j.tipo === 'pintar') { pintando(j, dt); return; }
       if (j.tipo === 'borrar') { borrando(j, dt); return; }
       // si ya lo alcanza con la mano, no necesita llegar al punto exacto
@@ -983,7 +1068,7 @@
     function lanzarMalabar(c, desde, hacia, T, alto) {
       const prob = Math.min(0.97, 0.55 + 0.06 * mente.nivelMalabar);
       c.estado = 'vuelo'; c.paso = true;
-      c.vueloMalabar = { desde: manos[desde].slice(), sy: c.y, hacia, t0: reloj, T, alto, agarra: Math.random() < prob };
+      c.vueloMalabar = { desde: manos[desde].slice(), sy: c.y, hacia, t0: reloj, T, alto, agarra: Math.random() < prob, dueno: yo };
       mente.juego.lanzo = { lado: desde, t: reloj };
       mente.juego.lanzados++;
     }
@@ -1029,9 +1114,9 @@
     // Tocar una tecla le quita la vida propia (hasta que lo dejes de nuevo)
     function soltarCubo() {
       guardarPlumon();
-      for (const c of CUBOS) {
-        if (c.estado === 'mano' || c.estado === 'cabeza') { c.estado = 'suelo'; c.vy = 0; }
-        if (c.vueloMalabar) { c.vueloMalabar = null; c.vy = 0; }
+      for (const c of CUBOS) {   // suelta solo los suyos
+        if ((c.estado === 'mano' || c.estado === 'cabeza') && (c.dueno || PJS[0]) === yo) { c.estado = 'suelo'; c.vy = 0; }
+        if (c.vueloMalabar && c.vueloMalabar.dueno === yo && !c.pase) { c.vueloMalabar = null; c.vy = 0; }
       }
       mente.juego = null;
     }
@@ -1062,9 +1147,12 @@
     document.addEventListener('keydown', e => {
       if (e.code === 'Space') {
         e.preventDefault();
-        if (!e.repeat) { tomarControl(); brincar(); }
+        if (!e.repeat) conPersonaje(CONTROL, () => { tomarControl(); brincar(); });
         return;
       }
+      // 1: controlar al grande · 2: controlar al pequeño
+      if (e.code === 'Digit1' || e.code === 'Numpad1') { CONTROL = PJS[0]; return; }
+      if (e.code === 'Digit2' || e.code === 'Numpad2') { CONTROL = PJS[1]; return; }
       if (TECLAS_USADAS.includes(e.code)) {
         teclas.add(e.code);
         e.preventDefault();
@@ -1074,7 +1162,7 @@
     window.addEventListener('blur', () => teclas.clear());
 
     // Acostarse y levantarse de la cama: se interpola entre estar de pie al lado y acostado encima
-    const LADO_CAMA = [1420, 0, -250];
+    let LADO_CAMA = [1420, 0, -250];   // (cada uno tiene su cama: se cambia al cargar el personaje)
     const suave = t => t * t * (3 - 2 * t);
     function enLaCama(dt) {
       const quiere = mente.accion === 'acostarse' || mente.accion === 'durmiendo' ? 1 : 0;
@@ -1096,8 +1184,10 @@
         mente.tAccion = 0.5;
       }
       if (mente.accion === 'durmiendo') { mente.tAccion -= dt; if (mente.tAccion <= 0) mente.accion = 'levantarse'; }
-      camPos.x = suavizar(camPos.x, pos.x, SUAVIDAD_SEGUIR, dt);
-      camPos.z = suavizar(camPos.z, pos.z, SUAVIDAD_SEGUIR, dt);
+      if (yo === CONTROL) {   // la cámara sigue al que controlas
+        camPos.x = suavizar(camPos.x, pos.x, SUAVIDAD_SEGUIR, dt);
+        camPos.z = suavizar(camPos.z, pos.z, SUAVIDAD_SEGUIR, dt);
+      }
       return true;
     }
 
@@ -1120,18 +1210,19 @@
 
     function mover(dt) {
       if (enElPiso(dt)) {
-        if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].some(k => teclas.has(k))) tomarControl();
+        if (yo === CONTROL && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].some(k => teclas.has(k))) tomarControl();
         return;
       }
       if (enLaCama(dt)) {
-        if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].some(k => teclas.has(k))) tomarControl();
+        if (yo === CONTROL && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].some(k => teclas.has(k))) tomarControl();
         return;
       }
       let adelante = 0, derecha = 0;
-      if (teclas.has('KeyW')) adelante += 1;
-      if (teclas.has('KeyS')) adelante -= 1;
-      if (teclas.has('KeyD')) derecha  += 1;
-      if (teclas.has('KeyA')) derecha  -= 1;
+      const mio = yo === CONTROL;      // las teclas mueven solo al que estás controlando
+      if (mio && teclas.has('KeyW')) adelante += 1;
+      if (mio && teclas.has('KeyS')) adelante -= 1;
+      if (mio && teclas.has('KeyD')) derecha  += 1;
+      if (mio && teclas.has('KeyA')) derecha  -= 1;
       const manda = adelante !== 0 || derecha !== 0;
       if (manda) tomarControl();
       const lento = mente.cansado > 0 ? 0.45 : 1;
@@ -1140,23 +1231,23 @@
       if (mente.bloqueo > 0) {
         // se dio vuelta contra la pared: da unos pasitos hacia adentro
         mente.bloqueo -= dt;
-        metaX = mente.huida[0] * VELOCIDAD * 0.3;
-        metaZ = mente.huida[1] * VELOCIDAD * 0.3;
+        metaX = mente.huida[0] * VELOCIDAD * yo.rapidez * 0.3;
+        metaZ = mente.huida[1] * VELOCIDAD * yo.rapidez * 0.3;
         if (mente.bloqueo <= 0) mente.giroForzado = null;
       } else if (manda) {
         const largo = Math.hypot(adelante, derecha);
         adelante /= largo;
         derecha  /= largo;
         const g = actual.giro * Math.PI / 180;
-        const corre = teclas.has('ShiftLeft') || teclas.has('ShiftRight') ? RAPIDEZ_CORRER : 1;
-        metaX = (Math.sin(g) * adelante + Math.cos(g) * derecha) * VELOCIDAD * lento * corre;
-        metaZ = (-Math.cos(g) * adelante + Math.sin(g) * derecha) * VELOCIDAD * lento * corre;
+        const corre = mio && (teclas.has('ShiftLeft') || teclas.has('ShiftRight')) ? RAPIDEZ_CORRER : 1;
+        metaX = (Math.sin(g) * adelante + Math.cos(g) * derecha) * VELOCIDAD * yo.rapidez * lento * corre;
+        metaZ = (-Math.cos(g) * adelante + Math.sin(g) * derecha) * VELOCIDAD * yo.rapidez * lento * corre;
       } else if (reloj - ultimaOrden > QUIETO_PARA_VIVIR) {
         if (mente.accion === 'jugador') nuevaAccion();
         const { dir, rapido } = pensar(dt);
         if (dir) {
-          metaX = dir[0] * VELOCIDAD * rapido * lento;
-          metaZ = dir[1] * VELOCIDAD * rapido * lento;
+          metaX = dir[0] * VELOCIDAD * yo.rapidez * rapido * lento;
+          metaZ = dir[1] * VELOCIDAD * yo.rapidez * rapido * lento;
         }
       }
       vel.x = suavizar(vel.x, metaX, ACELERACION, dt);
@@ -1194,8 +1285,10 @@
       fuerzaPaso = suavizar(fuerzaPaso, rapidez > 30 && altura === 0 ? 1 : 0, 10, dt);
       desplazPaso = Math.sin(fasePaso) * PASO_MAX * (1 + corriendo) * fuerzaPaso;
 
-      camPos.x = suavizar(camPos.x, pos.x, SUAVIDAD_SEGUIR, dt);
-      camPos.z = suavizar(camPos.z, pos.z, SUAVIDAD_SEGUIR, dt);
+      if (yo === CONTROL) {   // la cámara sigue al que controlas
+        camPos.x = suavizar(camPos.x, pos.x, SUAVIDAD_SEGUIR, dt);
+        camPos.z = suavizar(camPos.z, pos.z, SUAVIDAD_SEGUIR, dt);
+      }
     }
 
     // Lo que siente en cada momento (cansancio, susto, sentarse, parpadeo, ánimo)
@@ -1203,7 +1296,7 @@
       mente.tAnimo -= dt;
       if (mente.tAnimo <= 0) cambiarAnimo();
       mente.cansado = Math.max(0, mente.cansado - dt);
-      mente.susto = suavizar(mente.susto, actual.distancia < 340 ? 1 : 0, 6, dt);
+      mente.susto = suavizar(mente.susto, (yo.distCam ?? 999) < 330 ? 1 : 0, 6, dt);
       mente.sentado = suavizar(mente.sentado, mente.accion === 'sentado' ? 1 : 0, 4, dt);
       mente.tParpadeo -= dt;
       if (mente.tParpadeo <= 0) { mente.parpadeando = 0.15; mente.tParpadeo = azarEntre(2, 5.5); }
@@ -1253,7 +1346,7 @@
                   : mente.accion === 'durmiendo' ? 'durmiendo' : mente.accion === 'tirado' ? 'sin saber qué hacer'
                   : mente.cansado > 0 ? 'cansado'
                   : mente.susto > 0.5 ? 'sorprendido' : mente.animo;
-      if (etiquetaAnimo.textContent !== texto) etiquetaAnimo.textContent = texto;
+      yo.texto = texto;   // la etiqueta de arriba muestra lo de los dos
     }
 
     function moverCamaraConFlechas(dt) {
@@ -1285,10 +1378,13 @@
 
     // Marco de la puerta: se ve de los dos lados
     const MARCO = 16, GROSOR_MURO = 34;
-    mueble(null,
-      caja(PUERTA.x - GROSOR_MURO / 2, PUERTA.x + GROSOR_MURO / 2, 0, PUERTA.alto + MARCO, PUERTA.z0 - MARCO, PUERTA.z0, MADERA_OSCURA),
-      caja(PUERTA.x - GROSOR_MURO / 2, PUERTA.x + GROSOR_MURO / 2, 0, PUERTA.alto + MARCO, PUERTA.z1, PUERTA.z1 + MARCO, MADERA_OSCURA),
-      caja(PUERTA.x - GROSOR_MURO / 2, PUERTA.x + GROSOR_MURO / 2, PUERTA.alto, PUERTA.alto + MARCO, PUERTA.z0, PUERTA.z1, MADERA_OSCURA));
+    for (const d of PUERTAS) {
+      const col = d.soloChico ? '#4f7fb5' : MADERA_OSCURA;
+      mueble(null,
+        caja(d.x - GROSOR_MURO / 2, d.x + GROSOR_MURO / 2, 0, d.alto + MARCO, d.z0 - MARCO, d.z0, col),
+        caja(d.x - GROSOR_MURO / 2, d.x + GROSOR_MURO / 2, 0, d.alto + MARCO, d.z1, d.z1 + MARCO, col),
+        caja(d.x - GROSOR_MURO / 2, d.x + GROSOR_MURO / 2, d.alto, d.alto + MARCO, d.z0, d.z1, col));
+    }
 
     // Cama (habitación 2): cabecera contra la pared del fondo a la derecha
     const CAMA = { x0: 1250, x1: 1696, z0: -690, z1: -380, colchon: 85 };
@@ -1300,7 +1396,7 @@
       caja(1676, 1696, 0, 200, -690, -380, MADERA_OSCURA),         // cabecera
       caja(1250, 1264, 0, 115, -690, -380, MADERA_OSCURA));        // pie de la cama
     const OBSTACULOS = [[CAMA.x0 - 90, CAMA.x1, CAMA.z0 - 20, CAMA.z1 + 90]];   // por donde no puede caminar
-    const ACOSTADO = { x: CAMA.x0 + 22, z: (CAMA.z0 + CAMA.z1) / 2, altura: CAMA.colchon + 70 };   // cómo queda en la cama
+    let ACOSTADO = { x: CAMA.x0 + 22, z: (CAMA.z0 + CAMA.z1) / 2, altura: CAMA.colchon + 70 };   // cómo queda en la cama
 
     // Aro (habitación principal), en la pared del fondo. Hueco cuadrado de 100 (los cubos miden 50)
     const ARO = { x: -250, alto: 430, z: -625, hueco: 100, barra: 9 };
@@ -1359,36 +1455,45 @@
           CUBOS.push(nuevoCubo(COLORES_CUBO[Math.floor(Math.random() * COLORES_CUBO.length)],
                                azarEntre(-660, -470), azarEntre(560, 720) + i * 60, azarEntre(-660, -470), azarEntre(0, 90)));
       } else if (b.tipo === 'reiniciar') {
-        if (mente.juego) { soltarCubo(); mente.tAccion = 0; }
+        for (const pj of PJS) conPersonaje(pj, () => { if (mente.juego) { soltarCubo(); mente.tAccion = 0; } });
         CUBOS.length = 0;
         CUBOS.push(...CUBOS_INICIO.map(a => nuevoCubo(...a)));
       } else borrarTodo();
     }
 
-    // La puerta: gira en una bisagra en z0 y se abre hacia el lado contrario de donde viene él
-    const puerta = { ang: 0, v: 0, lado: 1, cerca: false };
-    const ANCHO_PUERTA = PUERTA.z1 - PUERTA.z0;
+    // Las puertas: giran en una bisagra en z0 y se abren hacia el lado contrario de donde viene él
+    // (la del pequeño se abre solo para él)
+    const puerta = PUERTAS[0].hoja;
     function moverPuerta(dt) {
-      puerta.cerca = Math.abs(pos.x - PUERTA.x) < 290 && Math.abs(pos.z - (PUERTA.z0 + PUERTA.z1) / 2) < 260;
-      if (puerta.ang < 3 && puerta.cerca) puerta.lado = pos.x < PUERTA.x ? 1 : -1;
-      const meta = puerta.cerca ? 88 : 0;
-      puerta.v += (60 * (meta - puerta.ang) - 11 * puerta.v) * dt;
-      puerta.ang = limitar(puerta.ang + puerta.v * dt, [0, 92]);
+      for (const pj of PJS) pj.cercaPuerta = false;
+      for (const d of PUERTAS) {
+        const h = d.hoja;
+        const cerca = PJS.filter(pj => Math.abs(pj.pos.x - d.x) < 290 && Math.abs(pj.pos.z - (d.z0 + d.z1) / 2) < 260 &&
+                                       (!d.soloChico || pj.escala < 0.8));
+        h.cerca = cerca.length > 0;
+        for (const pj of cerca) pj.cercaPuerta = true;
+        if (h.ang < 3 && h.cerca) h.lado = cerca[0].pos.x < d.x ? 1 : -1;
+        const meta = h.cerca ? 88 : 0;
+        h.v += (60 * (meta - h.ang) - 11 * h.v) * dt;
+        h.ang = limitar(h.ang + h.v * dt, [0, 92]);
+      }
     }
-    const puertaAbierta = () => puerta.ang > 60;
-    function carasPuerta() {
-      const m = new DOMMatrix().translate(PUERTA.x, 0, PUERTA.z0).rotate(0, puerta.ang * puerta.lado, 0);
+    function carasPuerta(d) {
+      const h = d.hoja, ancho = d.z1 - d.z0, chica = d.soloChico;
+      const m = new DOMMatrix().translate(d.x, 0, d.z0).rotate(0, h.ang * h.lado, 0);
+      const color = chica ? '#7fb3e0' : '#b4865c', manilla = chica ? 140 : 200;
       const caras = [
-        ...caja(-6, 6, 0, PUERTA.alto - 4, 2, ANCHO_PUERTA - 2, '#b4865c'),
-        ...caja(6, 16, 200, 214, ANCHO_PUERTA - 45, ANCHO_PUERTA - 30, '#d9b45a'),    // manillas
-        ...caja(-16, -6, 200, 214, ANCHO_PUERTA - 45, ANCHO_PUERTA - 30, '#d9b45a'),
+        ...caja(-6, 6, 0, d.alto - 4, 2, ancho - 2, color),
+        ...caja(6, 16, manilla, manilla + 14, ancho - (chica ? 30 : 45), ancho - (chica ? 18 : 30), '#d9b45a'),    // manillas
+        ...caja(-16, -6, manilla, manilla + 14, ancho - (chica ? 30 : 45), ancho - (chica ? 18 : 30), '#d9b45a'),
+        ...(chica ? [...caja(6, 8, 200, 250, 30, 90, '#f2c94c'), ...caja(-8, -6, 200, 250, 30, 90, '#f2c94c')] : []),   // una estrella... o casi
       ];
-      return { m, caras, cuarto: puerta.ang > 3 ? (puerta.lado > 0 ? 1 : 0) : null };
+      return { m, caras, cuarto: h.ang > 3 ? (h.lado > 0 ? d.b : d.a) : null };
     }
 
     // ---- Física de los cubos ----
     let manoMundo = null;           // dónde está su mano derecha
-    const manos = { [1]: null, [-1]: null };   // las dos manos (para llevar cubos y hacer malabares)
+    let manos = { [1]: null, [-1]: null };   // las dos manos (para llevar cubos y hacer malabares)
     let cabezaMundo = null;         // la punta de su cabeza (para balancear un cubo)
     function apoyoDe(c) {           // altura sobre la que descansa un cubo (el piso u otro cubo)
       let base = 0, sx = 0, sz = 0, n = 0;
@@ -1408,17 +1513,18 @@
       const h = LADO_CUBO / 2;
       for (const b of BOTONES) b.hundido = Math.max(0, b.hundido - dt * 3);
       for (const c of CUBOS) {
+        const dueno = c.dueno || PJS[0];
         if (c.estado === 'mano') {
-          const m = manos[c.mano || 1];
+          const m = dueno.manos[c.mano || 1];
           if (m) { c.x = m[0]; c.y = -m[1] - h + (c.pila || 0) * LADO_CUBO; c.z = m[2]; }
           continue;
         }
         if (c.vueloMalabar) {
           // va de una mano a la otra (o a la misma) en un arco
-          const f = c.vueloMalabar, u = (reloj - f.t0) / f.T, E = manos[f.hacia];
+          const f = c.vueloMalabar, u = (reloj - f.t0) / f.T, E = f.dueno.manos[f.hacia];
           if (u >= 1) {
             c.vueloMalabar = null;
-            if (f.agarra) { Object.assign(c, { estado: 'mano', mano: f.hacia, pila: 0 }); continue; }
+            if (f.agarra) { Object.assign(c, { estado: 'mano', mano: f.hacia, pila: 0, dueno: f.dueno }); continue; }
             Object.assign(c, { vx: azarEntre(-160, 160), vz: azarEntre(-160, 160), vy: -80 });   // se le cae
           } else {
             const ey = -E[1] - h;
@@ -1430,7 +1536,8 @@
           }
         }
         if (c.estado === 'cabeza') {
-          if (cabezaMundo) { c.x = cabezaMundo[0]; c.y = -cabezaMundo[1]; c.z = cabezaMundo[2]; c.giro = orientacion * GRADOS; }
+          const k = dueno.cabezaMundo;
+          if (k) { c.x = k[0]; c.y = -k[1]; c.z = k[2]; c.giro = dueno.orientacion * GRADOS; }
           continue;
         }
         if (c.estado === 'vuelo') {
@@ -1458,11 +1565,13 @@
           c.vx *= f; c.vz *= f;
           c.vuelta = suavizar(c.vuelta, Math.round(c.vuelta / 90) * 90, 8, dt);
           // él los patea al caminar
-          if (c.y < 100 && altura < 40 && mente.acostado < 0.05 && mente.tirado < 0.05) {
-            const dx = c.x - pos.x, dz = c.z - pos.z, d = Math.hypot(dx, dz);
-            if (d < 92 && d > 0.01) {
-              const empuja = Math.hypot(vel.x, vel.z) * 1.2 + 60;
-              c.x = pos.x + dx / d * 92; c.z = pos.z + dz / d * 92;
+          for (const pj of PJS) {   // los dos los patean al caminar
+            if (c.y > 100 * pj.escala || pj.altura > 40 || pj.mente.acostado > 0.05 || pj.mente.tirado > 0.05) continue;
+            const radio = 92 * (0.4 + 0.6 * pj.escala);
+            const dx = c.x - pj.pos.x, dz = c.z - pj.pos.z, d = Math.hypot(dx, dz);
+            if (d < radio && d > 0.01) {
+              const empuja = Math.hypot(pj.vel.x, pj.vel.z) * 1.2 + 60;
+              c.x = pj.pos.x + dx / d * radio; c.z = pj.pos.z + dz / d * radio;
               c.vx += dx / d * empuja * dt * 8; c.vz += dz / d * empuja * dt * 8;
               c.giro += (Math.random() - 0.5) * 20;
             }
@@ -1676,9 +1785,9 @@
     // =====================================================================
     //  LA POSE: cabeza, brazos, respiración, sentarse...
     // =====================================================================
-    const cabeza = { giro: 0, inclina: 0, ladeo: 0 };
-    const brazos = { [-1]: { adelante: 0, abre: 0 }, [1]: { adelante: 0, abre: 0 } };
-    const pupila = { x: 0, y: 0 };
+    let cabeza = { giro: 0, inclina: 0, ladeo: 0 };
+    let brazos = { [-1]: { adelante: 0, abre: 0 }, [1]: { adelante: 0, abre: 0 } };
+    let pupila = { x: 0, y: 0 };
     let cuerpoY = 0, enElAire = 0, corriendo = 0;
     const GRADOS = 180 / Math.PI;
 
@@ -1694,7 +1803,9 @@
       const blanco = mirarA === 'camara' ? ojo
                    : mirarA === 'lampara' ? aLocal(CUARTOS[cuartoDe(pos.x)].luz)
                    : Array.isArray(mirarA) ? aLocal(mirarA)
-                   : mirarA && mirarA.color ? aLocal([mirarA.x, -mirarA.y - LADO_CUBO / 2, mirarA.z]) : null;
+                   : mirarA && mirarA.color ? aLocal([mirarA.x, -mirarA.y - LADO_CUBO / 2, mirarA.z])
+                   : mirarA && mirarA.pj ? aLocal(mirarA.pj.cabezaMundo || [mirarA.pj.pos.x, -200, mirarA.pj.pos.z])
+                   : mirarAlOtro(aLocal);
       const dormido = mente.acostado > 0.5;
 
       let metaGiro, metaInclina, metaLadeo = 0, quiereGiro = 0, quiereInclina = 0;
@@ -1724,6 +1835,7 @@
       if (mente.molesto > 0) metaInclina -= 6;
       if (mente.dedo > 0) metaLadeo -= 8;
       if (mente.accion === 'pataleta') { metaInclina = -14; metaGiro = Math.sin(reloj * 12) * 15; }
+      if (mente.accion === 'enojado') { metaInclina = -10; }
       if (dormido) { metaGiro = Math.sin(reloj * 0.3) * 6; metaInclina = 0; metaLadeo = 8; }
       if (mente.tirado > 0.5) { metaGiro = Math.sin(reloj * 0.4) * 20; metaInclina = 0; metaLadeo = 0; }
 
@@ -1756,11 +1868,17 @@
         const sacude = golpe.t / 0.7;   // agita los brazos cuando le pegas
         abre += sacude * 45 + Math.sin(reloj * 24 + lado) * 18 * sacude;
         adelante += Math.sin(reloj * 19 + lado * 2) * 20 * sacude;
-        if (mente.accion === 'saludar' && lado === 1) { abre = 70 + Math.sin(reloj * 11) * 25; adelante = -10; }
+        const j = mente.juego;
+        const saludando = mente.accion === 'saludar' || (mente.accion === 'saludarOtro' && j && (j.fase === 'hola' || j.tipo === 'responder'));
+        if (saludando && lado === 1) { abre = 70 + Math.sin(reloj * 11) * 25; adelante = -10; }
+        if (j && j.tipo === 'jugarCon' && lado === 1 && j.cubo && j.cubo.estado === 'mano' && j.cubo.dueno === yo) {
+          adelante = j.apuntando ? 40 + (0.7 - Math.max(0, j.t)) * 100 : 55; abre = 0;
+        }
+        if (j && j.tipo === 'jugarCon' && lado === 1 && j.cubo && j.cubo.vueloMalabar && j.cubo.vueloMalabar.dueno === yo) { adelante = 75; abre = 5; }
+        if ((j && (j.tipo === 'molestar' || j.tipo === 'empujar') && j.fase === 'reir' && j.t > 1.1) && lado === 1) { adelante = 95; abre = 0; }
         // dormido: los brazos pegados al cuerpo
         if (dormido) { abre = -18 + resp * 2; adelante = 0; }
         // con un cubo en la mano, apuntando y lanzando
-        const j = mente.juego;
         if (j && lado === 1 && (j.fase === 'llevar' || j.fase === 'apuntar')) {
           adelante = j.fase === 'apuntar' ? 40 - (0.9 - j.t) * 110 : 55;
           abre = j.fase === 'apuntar' ? 15 : 0;
@@ -1789,9 +1907,11 @@
         // pataleta: brazos tiesos hacia atrás
         if (mente.accion === 'pataleta') { abre = -12; adelante = -22; }
         // empuja la puerta al pasar
-        if (puerta.cerca && puerta.ang < 70 && rapidez > 0.15 && lado === 1) {
+        if (yo.cercaPuerta && PUERTAS.some(d => d.hoja.cerca && d.hoja.ang < 70) && rapidez > 0.15 && lado === 1) {
           adelante = 80; abre = 0;
         }
+        // jugando con sus juguetes: los brazos van y vienen adentro del baúl
+        if (j && j.tipo === 'juguetes' && j.fase === 'jugar') { adelante = 60 + Math.sin(reloj * 6 + lado * 2) * 25; abre = 5; }
         // molesto: el dedo del medio a la cámara
         if (mente.dedo > 0 && lado === 1) { adelante = 90 + Math.sin(reloj * 9) * 4; abre = 0; }
         brazos[lado].adelante = suavizar(brazos[lado].adelante, adelante, 12, dt);
@@ -1821,46 +1941,59 @@
     let ojoAnterior = [0, -300, 600];
     const formas = [];   // las caras tal como quedaron en pantalla (para saber si el mouse lo toca)
 
-    function dibujarPersonaje() {
+    function dibujarPersonaje() {   // (dibuja la escena entera: los dos personajes y los objetos)
       cctx.clearRect(0, 0, innerWidth, innerHeight);
       const camara = new DOMMatrix(mundo.style.transform);
-      const enMundo = new DOMMatrix(jugador.style.transform)
-        .multiply(new DOMMatrix(personaje.style.transform));
       const cx = innerWidth / 2, cy = innerHeight / 2;
-      const M = camara.multiply(enMundo);
-      const o = M.inverse().transformPoint(new DOMPoint(0, 0, PERSPECTIVA));
-      const ojo = [o.x / o.w, o.y / o.w, o.z / o.w];
-      ojoAnterior = ojo;
-
-      // Arma todas las caras en su pose actual
-      const pose = calcularPose(dtActual, enMundo, ojo);
+      const M = camara;
+      const cw = camara.inverse().transformPoint(new DOMPoint(0, 0, PERSPECTIVA));
+      const ojo = [cw.x / cw.w, cw.y / cw.w, cw.z / cw.w];   // la cámara, en el mundo
       const lista = [];
-      colocar(GRUPOS.cuerpo[0], pose.mCuerpo, 0, lista);
-      for (const caras of GRUPOS.cabeza) colocar(caras, pose.mCabeza, 1, lista, pose.ojos, 'cabeza');
-      colocar(GRUPOS.pieIzq[0], pose.mPieIzq, 1, lista, null, 'pie');
-      colocar(GRUPOS.pieDer[0], pose.mPieDer, 1, lista, null, 'pie');
-      for (const lado of [-1, 1]) {
-        const m = brazoVivo(lado, brazos[lado].adelante, brazos[lado].abre, pose.mCuerpo, lista, lado === 1 && mente.dedo > 0);
-        manos[lado] = aplicar(enMundo, aplicar(pose.mCuerpo, aplicar(m, [0, LATERAL_LARGO + 12, 18])));
-        if (lado === 1) manoMundo = manos[1];
-      }
-      cabezaMundo = aplicar(enMundo, aplicar(pose.mCabeza, [0, -ALTO_CABEZA, 8]));
-      const pelito = mechon(pelo.curva, pelo.atras)
-        .map(p => ({ esquinas: p.pts, normal: p.n, rgb: p.rgb, bordes: p.bordes }));
-      colocar(pelito, pose.mCabeza, 1, lista, null, 'cabeza');
 
-      // Los objetos de la casa (están en el mundo: se pasan a las coordenadas del personaje)
-      const alCuerpo = enMundo.inverse();
+      // Cada personaje arma sus caras en su pose actual
+      for (const pj of PJS) conPersonaje(pj, () => {
+        const enMundo = new DOMMatrix(jugador.style.transform).multiply(new DOMMatrix(personaje.style.transform));
+        const o = enMundo.inverse().transformPoint(new DOMPoint(...ojo));
+        ojoAnterior = [o.x / o.w, o.y / o.w, o.z / o.w];      // la cámara vista desde su cuerpo
+        yo.distCam = Math.hypot(ojo[0] - pos.x, ojo[2] - pos.z);
+        const pose = calcularPose(dtActual, enMundo, ojoAnterior);
+        const E = m => enMundo.multiply(m);
+        const desde = lista.length;
+        colocar(GRUPOS.cuerpo[0], E(pose.mCuerpo), 0, lista);
+        for (const caras of GRUPOS.cabeza) colocar(caras, E(pose.mCabeza), 1, lista, pose.ojos, 'cabeza');
+        colocar(GRUPOS.pieIzq[0], E(pose.mPieIzq), 1, lista, null, 'pie');
+        colocar(GRUPOS.pieDer[0], E(pose.mPieDer), 1, lista, null, 'pie');
+        for (const lado of [-1, 1]) {
+          const m = brazoVivo(lado, brazos[lado].adelante, brazos[lado].abre, E(pose.mCuerpo), lista, lado === 1 && mente.dedo > 0);
+          manos[lado] = aplicar(E(pose.mCuerpo), aplicar(m, [0, LATERAL_LARGO + 12, 18]));
+          if (lado === 1) manoMundo = manos[1];
+        }
+        cabezaMundo = aplicar(E(pose.mCabeza), [0, -ALTO_CABEZA, 8]);
+        yo.zzz = aplicar(enMundo, [0, -(ALTO - 60), 0]);
+        // el mechón (el pequeño tiene dos, uno para cada lado)
+        const mechones = yo.dosMechones ? [[-14, 1], [14, -1]] : [[0, 1]];
+        for (const [dx, sentido] of mechones) {
+          const pelito = mechon(pelo.curva * sentido, pelo.atras)
+            .map(p => ({ esquinas: p.pts, normal: p.n, rgb: p.rgb, bordes: p.bordes }));
+          colocar(pelito, E(pose.mCabeza).translate(dx, 0, 0), 1, lista, null, 'cabeza');
+        }
+        for (let i = desde; i < lista.length; i++) { lista[i].pj = yo; lista[i].cuarto = cuartoDe(pos.x); }
+      });
+
+      // Los objetos de la casa
+      const IDENTIDAD = new DOMMatrix();
       const ponerObjeto = (caras, m, cuarto, parte) => {
         const desde = lista.length;
-        colocar(caras, m ? alCuerpo.multiply(m) : alCuerpo, 1, lista, null, parte);
+        colocar(caras, m || IDENTIDAD, 1, lista, null, parte);
         for (let i = desde; i < lista.length; i++) lista[i].cuarto = cuarto;
       };
       for (const mu of MUEBLES) ponerObjeto(mu.caras, null, mu.cuarto, null);
       // la hoja de la puerta, cerrada, desaparece junto con su pared cuando esa pared se esconde
-      const pu = carasPuerta();
-      const cc = camara.inverse().transformPoint(new DOMPoint(0, 0, PERSPECTIVA));
-      if (!(puerta.ang < 45 && paredOculta[cuartoDe(cc.x / cc.w)])) ponerObjeto(pu.caras, pu.m, pu.cuarto, null);
+      // la hoja de cada puerta, cerrada, desaparece junto con su pared cuando esa pared se esconde
+      PUERTAS.forEach((d, i) => {
+        const pu = carasPuerta(d), ladoCam = ojo[0] < d.x ? 'a' : 'b';
+        if (!(d.hoja.ang < 45 && paredOculta[i][ladoCam])) ponerObjeto(pu.caras, pu.m, pu.cuarto, null);
+      });
       for (const c of CUBOS) { const cu = carasCubo(c); ponerObjeto(cu.caras, cu.m, cuartoDe(c.x), c); }
       for (const b of BOTONES) ponerObjeto(carasBoton(b), null, 0, b);
       for (const pl of PLUMONES) ponerObjeto(carasPlumon(pl), null, 0, null);
@@ -1874,7 +2007,7 @@
 
       const c2 = cctx;
       c2.lineJoin = 'round';
-      const W = enMundo;
+      const W = IDENTIDAD;   // todo ya está en el mundo
       const proyectar = ([x, y, z]) => {
         const X = M.m11 * x + M.m21 * y + M.m31 * z + M.m41;
         const Y = M.m12 * x + M.m22 * y + M.m32 * z + M.m42;
@@ -1893,9 +2026,9 @@
           p = { ...p, pts: corte, bordes: corte.map(() => false), marcas: null };
         }
         const pts = p.pts.map(proyectar);
-        formas.push({ pts, parte: p.parte });
+        formas.push({ pts, parte: p.parte, pj: p.pj });
         const recorte = p.cuarto != null ? recortes[p.cuarto] : null;
-        if (recorte) { c2.save(); c2.clip(recorte, 'evenodd'); }
+        if (recorte) { c2.save(); for (const k of recorte) c2.clip(k, 'evenodd'); }
 
         // Luz de la lámpara: degradado entre la esquina más iluminada y la más oscura
         const n = girar(W, p.n);
@@ -1977,8 +2110,8 @@
       ctx.drawImage(capa, 0, 0);
 
       // Zzz cuando duerme
-      if (mente.accion === 'durmiendo' && mente.acostado > 0.9) {
-        const [hx, hy] = proyectar([0, -(ALTO - 60), 0]);
+      for (const pj of PJS) if (pj.mente.accion === 'durmiendo' && pj.mente.acostado > 0.9 && pj.zzz) {
+        const [hx, hy] = proyectar(pj.zzz);
         const r = devicePixelRatio || 1;
         ctx.save();
         ctx.scale(r, r);
@@ -1996,30 +2129,42 @@
 
     // Lo que hay en una habitación queda escondido detrás de la pared que las separa
     // (salvo por el hueco de la puerta) cuando la cámara está del otro lado
-    const PIEZAS_COMPARTIDAS = [[PUERTA.z0 - 550, PUERTA.z0, 0, ALTO_CUARTO], [PUERTA.z1, PUERTA.z1 + 550, 0, ALTO_CUARTO],
-                                [PUERTA.z0, PUERTA.z1, PUERTA.alto, ALTO_CUARTO]];
-    function recortesDeCuartos(camara, cx, cy) {
-      const c = camara.inverse().transformPoint(new DOMPoint(0, 0, PERSPECTIVA));
-      const ladoCam = cuartoDe(c.x / c.w);
-      const salida = [null, null];
-      // ¿está visible la cara de la pared que mira a la cámara?
-      if (paredOculta[ladoCam]) return salida;
-      // si la cámara está dentro de una habitación, de la otra solo se ve lo que asoma por la puerta;
-      // si está afuera, se ve todo menos lo que tapa la pared
-      const cr = CUARTOS[ladoCam], X = c.x / c.w, Z = c.z / c.w, Y = -c.y / c.w;
+    // Para cada habitación: los recortes que hay que aplicarle (uno por cada muro con puerta que
+    // queda entre la cámara y esa habitación)
+    function recorteDePuerta(i, camara, cx, cy, c) {
+      const d = PUERTAS[i], X = c[0], Y = -c[1], Z = c[2];
+      const ladoCam = X < d.x ? 'a' : 'b';
+      if (paredOculta[i][ladoCam]) return null;           // esa cara del muro está escondida: se ve todo
+      // si la cámara está dentro de la habitación pegada a ese muro, solo se ve lo que asoma por la
+      // puerta; si no, se ve todo menos lo que tapa el muro
+      const cr = CUARTOS[ladoCam === 'a' ? d.a : d.b];
       const adentro = X > cr.x0 && X < cr.x1 && Z > cr.z0 && Z < cr.z1 && Y < ALTO_CUARTO;
+      const piezas = adentro ? [[d.z0, d.z1, 0, d.alto]]
+        : [[d.zMin, d.z0, 0, ALTO_CUARTO], [d.z1, d.zMax, 0, ALTO_CUARTO], [d.z0, d.z1, d.alto, ALTO_CUARTO]];
       const camino = new Path2D();
       if (!adentro) camino.rect(-10, -10, innerWidth + 20, innerHeight + 20);
-      for (const [a0, a1, y0, y1] of adentro ? [[PUERTA.z0, PUERTA.z1, 0, PUERTA.alto]] : PIEZAS_COMPARTIDAS) {
-        let q = [[PUERTA.x, -y0, a0], [PUERTA.x, -y0, a1], [PUERTA.x, -y1, a1], [PUERTA.x, -y1, a0]]
-          .map(p => aplicar(camara, p));
+      for (const [a0, a1, y0, y1] of piezas) {
+        let q = [[d.x, -y0, a0], [d.x, -y0, a1], [d.x, -y1, a1], [d.x, -y1, a0]].map(p => aplicar(camara, p));
         q = recortar(q, p => PERSPECTIVA - 5 - p[2]);    // lo que queda detrás de la cámara no se proyecta
         if (q.length < 3) continue;
         q.forEach(([X, Y, Z], i) => { const f = PERSPECTIVA / (PERSPECTIVA - Z); camino[i ? 'lineTo' : 'moveTo'](cx + X * f, cy + Y * f); });
         camino.closePath();
       }
-      salida[1 - ladoCam] = camino;
-      return salida;
+      return camino;
+    }
+    function recortesDeCuartos(camara, cx, cy) {
+      const w = camara.inverse().transformPoint(new DOMPoint(0, 0, PERSPECTIVA));
+      const c = [w.x / w.w, w.y / w.w, w.z / w.w];
+      const rc = cuartoDe(c[0]);
+      return CUARTOS.map((_, r) => {
+        const lista = [];
+        for (let i = 0; i < PUERTAS.length; i++) {
+          const d = PUERTAS[i];
+          // ¿ese muro queda entre la habitación de la cámara y la habitación r?
+          if ((Math.min(rc, r) <= d.a && Math.max(rc, r) >= d.b)) { const k = recorteDePuerta(i, camara, cx, cy, c); if (k) lista.push(k); }
+        }
+        return lista.length ? lista : null;
+      });
     }
 
 
@@ -2050,7 +2195,7 @@
         return [...caja(x - 5, x + 5, MESITA.alto, MESITA.alto + 9, z - 34, z + 26, pl.color),
                 ...caja(x - 5, x + 5, MESITA.alto, MESITA.alto + 9, z + 26, z + 36, '#f4f1ea')];   // tapa
       }
-      const m = manos[1];
+      const m = pl.dueno && pl.dueno.manos[1];
       if (!m) return [];
       const h = -m[1];
       return [...caja(m[0] - 6, m[0] + 6, h - 40, h + 22, m[2] - 6, m[2] + 6, pl.color)];
@@ -2088,7 +2233,8 @@
     function elegirLugar(ancho) {
       for (let intento = 0; intento < 40; intento++) {
         // prefiere las paredes que se ven (la de adelante casi siempre es la "cuarta pared")
-        const p = PAREDES_PINTABLES[+elegir({ 0: 0.45, 1: 0.15, 2: 0.4 })];
+        const pesos = yo.escala < 0.8 ? { 0: 0.3, 1: 0.1, 2: 0.25, 3: 0.45 } : { 0: 0.45, 1: 0.15, 2: 0.4 };
+        const p = PAREDES_PINTABLES[+elegir(pesos)];
         const s = azarEntre(p.a0 + MARGEN + ancho / 2, p.a1 - MARGEN - ancho / 2);
         const pie = p.paraPararse(s);
         if (!libre(pie[0], pie[2])) continue;
@@ -2160,7 +2306,7 @@
       mente.dibujados = [nombre, ...(mente.dibujados || [])].slice(0, 4);
       const partes = IDEAS[nombre]();
       // escala y un poquito de inclinación: nunca le sale igual
-      const esc = azarEntre(1.2, 1.7), incl = azarEntre(-0.12, 0.12);
+      const esc = azarEntre(1.2, 1.7) * (yo.escala < 1 ? 0.75 : 1), incl = azarEntre(-0.12, 0.12);
       const favorito = Object.keys(COLORES_PLUMON)[Math.floor(Math.random() * 7)];
       for (const p of partes) {
         if (p.color === 'cualquiera') p.color = favorito;
@@ -2179,7 +2325,7 @@
         return [...caja(x - 24, x + 24, MESITA.alto, MESITA.alto + 14, z - 9, z + 7, '#f2a7b5'),
                 ...caja(x - 24, x - 4, MESITA.alto, MESITA.alto + 14.5, z - 9.5, z + 7.5, '#4f7fd0')];
       }
-      const m = manos[1];
+      const m = GOMA.dueno && GOMA.dueno.manos[1];
       if (!m) return [];
       const h = -m[1];
       return [...caja(m[0] - 10, m[0] + 10, h - 12, h + 14, m[2] - 22, m[2] + 22, '#f2a7b5')];
@@ -2199,10 +2345,13 @@
     }
     function borrarTodo() {
       for (const p of PAREDES_PINTABLES) { p.dibujos.length = 0; redibujar(p); }
-      if (mente.juego && (mente.juego.tipo === 'pintar' || mente.juego.tipo === 'borrar')) { soltarCubo(); mente.tAccion = 0; }
+      for (const pj of PJS) conPersonaje(pj, () => {
+        if (mente.juego && (mente.juego.tipo === 'pintar' || mente.juego.tipo === 'borrar')) { soltarCubo(); mente.tAccion = 0; }
+      });
     }
     // Elige qué borrar: casi siempre el dibujo que menos le gusta, y de ahí algunos trazos (o todo)
     function empezarBorrar() {
+      if (!GOMA.enMesa) { mente.tAccion = 0; return; }   // la goma la tiene el otro
       const todos = PAREDES_PINTABLES.flatMap(p => p.dibujos.filter(d => d.trazos.length).map(d => ({ p, d })));
       if (!todos.length) { mente.tAccion = 0; return; }
       todos.sort((a, b) => a.d.gusto - b.d.gusto);
@@ -2224,7 +2373,7 @@
         j.fase = 'borrar';
         mente.giroForzado = j.pared.mirar;
       } else if (j.fase === 'devolver') {
-        GOMA.enMesa = true;
+        guardarPlumon();
         Object.assign(j, { fase: 'fin', t: 0 });
         mente.tAccion = 0.6;
         if (Math.random() < 0.4) mente.despues = 'pintar';   // a veces dibuja otra cosa
@@ -2233,7 +2382,8 @@
     // pasa la goma por encima de cada trazo que eligió, y el trazo va desapareciendo
     function borrando(j, dt) {
       if (j.fase === 'tomar' && j.t <= 0) {
-        GOMA.enMesa = false;
+        if (!GOMA.enMesa) { terminarBorrar(j); return; }
+        GOMA.enMesa = false; GOMA.dueno = yo;
         j.fase = 'aPared';
         irA(j.pared.paraPararse(j.dibujo.s));
         mente.mirarA = j.pared.enMundo(j.dibujo.s, j.dibujo.h);
@@ -2283,8 +2433,11 @@
       irA(FRENTE_MESITA);
       mente.tAccion = 90;
     }
-    const plumonEnMano = () => PLUMONES.find(p => !p.enMesa);
-    function guardarPlumon() { for (const p of PLUMONES) p.enMesa = true; GOMA.enMesa = true; }
+    const plumonEnMano = () => PLUMONES.find(p => !p.enMesa && p.dueno === yo);
+    function guardarPlumon() {   // deja en la mesa lo que tenga en la mano
+      for (const p of PLUMONES) if (p.dueno === yo) { p.enMesa = true; p.dueno = null; }
+      if (GOMA.dueno === yo) { GOMA.enMesa = true; GOMA.dueno = null; }
+    }
 
     function llegoPintando(j) {
       if (j.fase === 'aMesa') {
@@ -2296,7 +2449,9 @@
           return;
         }
         const color = j.idea.partes[j.parte].color;
-        const pl = PLUMONES.find(p => p.nombre === color) || PLUMONES[0];
+        // el de ese color (si lo tiene el otro, cualquiera que esté en la mesa)
+        const pl = PLUMONES.find(p => p.nombre === color && p.enMesa) || PLUMONES.find(p => p.enMesa);
+        if (!pl) { mente.tAccion = 0; return; }
         Object.assign(j, { fase: 'tomar', t: 0.5 });
         mente.giroForzado = Math.atan2(0, -1);   // mira la mesita
         mente.mirarA = [pl.i * 19 + MESITA.x0 + 22, -MESITA.alto, (MESITA.z0 + MESITA.z1) / 2];
@@ -2314,7 +2469,8 @@
     // dibuja un poquito cada cuadro, siguiendo los trazos
     function pintando(j, dt) {
       if (j.fase === 'tomar' && j.t <= 0) {
-        j.siguiente.enMesa = false;
+        if (!j.siguiente.enMesa) { j.fase = 'aMesa'; irA(FRENTE_MESITA); return; }   // se lo ganó el otro
+        j.siguiente.enMesa = false; j.siguiente.dueno = yo;
         j.fase = 'aPared';
         irA(j.lugar.pared.paraPararse(j.lugar.s));
         mente.mirarA = j.lugar.pared.enMundo(j.lugar.s, j.lugar.h);
@@ -2355,10 +2511,12 @@
           // da unos pasos atrás para mirar lo que hizo
           const p = j.lugar.pared.paraPararse(j.lugar.s);
           j.fase = 'alejarse';
-          irA(dentroDelCuarto(CUARTOS[0], p[0] + (pared.eje === 'z' ? pared.normal * 230 : 0), p[2] + (pared.eje === 'x' ? pared.normal * 230 : 0)));
+          irA(dentroDelCuarto(CUARTOS[cuartoDe(p[0])], p[0] + (pared.eje === 'z' ? pared.normal * 230 : 0), p[2] + (pared.eje === 'x' ? pared.normal * 230 : 0)));
         }
       }
     }
+
+    const paredesTarde = [];   // paredes pintables que se agregan después (para que la de su pieza sea la número 3)
 
     // ---- Construcción de la casa ----
     const superficies = [];   // paredes con su plano, para esconder las que tapan al personaje
@@ -2397,12 +2555,14 @@
       const adelante = pared(k('pared'), 'x', c.z1, c.x0, c.x1, 0, H, -1);
       // en la habitación principal se puede pintar en las paredes enteras
       if (i === 0) { hacerPintable(atras, 'x', c.z0, c.x0, c.x1, 1); hacerPintable(adelante, 'x', c.z1, c.x0, c.x1, -1); }
+      if (i === 2) paredesTarde.push([atras, 'x', c.z0, c.x0, c.x1, 1]);   // la pared del fondo de su pieza (va al final)
       // paredes de los costados: la que da a la otra habitación tiene la puerta
       for (const [x, n] of [[c.x0, 1], [c.x1, -1]]) {
-        if (x === PUERTA.x) {
-          pared(k('pared'), 'z', x, c.z0, PUERTA.z0, 0, H, n);
-          pared(k('pared'), 'z', x, PUERTA.z1, c.z1, 0, H, n);
-          pared(k('pared'), 'z', x, PUERTA.z0, PUERTA.z1, PUERTA.alto, H, n);
+        const d = PUERTAS.find(p => p.x === x && p.z0 >= c.z0 && p.z1 <= c.z1);
+        if (d) {
+          pared(k('pared'), 'z', x, c.z0, d.z0, 0, H, n);
+          pared(k('pared'), 'z', x, d.z1, c.z1, 0, H, n);
+          pared(k('pared'), 'z', x, d.z0, d.z1, d.alto, H, n);
         } else {
           const lado = pared(k('pared'), 'z', x, c.z0, c.z1, 0, H, n);
           if (i === 0) hacerPintable(lado, 'z', x, c.z0, c.z1, n);
@@ -2410,45 +2570,421 @@
       }
     });
 
+    for (const args of paredesTarde) hacerPintable(...args);
+
     // Esconde las paredes que quedan entre la cámara y el personaje
-    const paredOculta = [false, false];   // la cara de la pared compartida que da a cada habitación
+    // por cada puerta: si la cara de su muro que da a cada lado (a / b) está escondida
+    const paredOculta = PUERTAS.map(() => ({ a: false, b: false }));
     function esconderParedes() {
-      paredOculta[0] = paredOculta[1] = false;
+      for (const o of paredOculta) o.a = o.b = false;
       const c = new DOMMatrix(mundo.style.transform).inverse().transformPoint(new DOMPoint(0, 0, PERSPECTIVA));
       const cam = [c.x / c.w, c.y / c.w, c.z / c.w];
-      const yo = [pos.x, -200, pos.z];
+      const quien = [CONTROL.pos.x, -200, CONTROL.pos.z];   // el que controlas
       for (const s of superficies) {
         const delante = punto(s.normal, restar(cam, s.punto)) > 0;
-        const tapa = delante && punto(s.normal, restar(yo, s.punto)) < 0;
+        const tapa = delante && punto(s.normal, restar(quien, s.punto)) < 0;
         const v = tapa ? 'hidden' : '';
-        if (tapa && s.punto[0] === PUERTA.x) paredOculta[s.normal[0] < 0 ? 0 : 1] = true;
+        const pi = PUERTAS.findIndex(d => d.x === s.punto[0]);
+        if (tapa && pi >= 0 && s.normal[0]) paredOculta[pi][s.normal[0] < 0 ? 'a' : 'b'] = true;
         if (s.el.style.visibility !== v) s.el.style.visibility = v;
       }
     }
 
     let inclinaSusto = [0, 0];
     function dibujar() {
-      // Si la cámara se le acerca mucho, se echa para atrás (lejos de la cámara)
-      const l = Math.hypot(ojoAnterior[0], ojoAnterior[2]) || 1;
-      const ang = mente.susto * 12;
-      inclinaSusto = [ojoAnterior[2] / l * ang, -ojoAnterior[0] / l * ang];
-      personaje.style.transform =
-        `translateY(${-altura}px) rotateX(${inclinaSusto[0] + golpe.tx - 9 * corriendo}deg) rotateZ(${inclinaSusto[1] + golpe.tz}deg)` +
-        ` rotateX(${90 * Math.max(suave(limitar((mente.acostado - 0.25) / 0.75, [0, 1])), suave(mente.tirado))}deg)`;
-      const lejos = Math.min(altura / 200, 1);
-      sombra.style.transform =
-        `translateY(-1px) rotateX(90deg) scale(${1.2 - lejos * 0.5})`;
-      sombra.style.opacity = mente.acostado > 0 || mente.tirado > 0.3 ? 0 : 1 - lejos * 0.6;
-
-      jugador.style.transform =
-        `translate3d(${pos.x}px, 0, ${pos.z}px) rotateY(${orientacion}rad)`;
+      for (const pj of PJS) conPersonaje(pj, () => {
+        // Si la cámara se le acerca mucho, se echa para atrás (lejos de la cámara)
+        const l = Math.hypot(ojoAnterior[0], ojoAnterior[2]) || 1;
+        const ang = mente.susto * 12;
+        inclinaSusto = [ojoAnterior[2] / l * ang, -ojoAnterior[0] / l * ang];
+        personaje.style.transform =
+          `translateY(${-altura}px) rotateX(${inclinaSusto[0] + golpe.tx - 9 * corriendo}deg) rotateZ(${inclinaSusto[1] + golpe.tz}deg)` +
+          ` rotateX(${90 * Math.max(suave(limitar((mente.acostado - 0.25) / 0.75, [0, 1])), suave(mente.tirado))}deg)` +
+          ` scale3d(${yo.escala}, ${yo.escala}, ${yo.escala})`;
+        const lejos = Math.min(altura / 200, 1);
+        sombra.style.transform =
+          `translateY(-1px) rotateX(90deg) scale(${(1.2 - lejos * 0.5) * yo.escala})`;
+        sombra.style.opacity = mente.acostado > 0 || mente.tirado > 0.3 ? 0 : 1 - lejos * 0.6;
+        jugador.style.transform =
+          `translate3d(${pos.x}px, 0, ${pos.z}px) rotateY(${orientacion}rad)`;
+      });
       mundo.style.transform =
         `translateZ(${-actual.distancia}px)` +
         ` rotateX(${actual.inclinacion}deg)` +
         ` rotateY(${actual.giro}deg)` +
-        ` translate3d(${-camPos.x}px, ${ALTO / 2}px, ${-camPos.z}px)`;
+        ` translate3d(${-camPos.x}px, ${ALTO * CONTROL.escala / 2}px, ${-camPos.z}px)`;
       esconderParedes();
       dibujarPersonaje();
+    }
+
+
+    // =====================================================================
+    //  LOS PERSONAJES: el grande y el pequeño
+    //  Cada uno tiene su propio estado. El código de arriba trabaja siempre con
+    //  "el que está cargado" (yo): conPersonaje(p, ...) lo carga, hace lo pedido
+    //  y guarda lo que cambió.
+    // =====================================================================
+    // ---- La pieza del pequeño (habitación 3): su cama y sus cosas ----
+    const CAMITA = { x0: 2110, x1: 2396, z0: 130, z1: 350, colchon: 60 };
+    mueble(2,
+      caja(2118, 2382, 0, 34, 138, 342, MADERA),
+      caja(2124, 2378, 34, CAMITA.colchon, 144, 336, '#f1eee6'),
+      caja(2126, 2260, 36, 66, 140, 340, '#e98aa6'),               // frazada rosada
+      caja(2300, 2360, CAMITA.colchon, 76, 170, 310, '#fbfaf6'),   // almohada
+      caja(2380, 2396, 0, 150, 130, 350, '#4f7fb5'),               // cabecera
+      caja(2110, 2122, 0, 90, 130, 350, '#4f7fb5'));               // pie de la cama
+    OBSTACULOS.push([CAMITA.x0 - 75, CAMITA.x1, CAMITA.z0 - 30, CAMITA.z1 + 50]);
+    const PIEZA = CUARTOS[2];
+    // alfombra
+    mueble(2, caja(1860, 2120, 0, 2, 440, 640, '#f2c94c'), caja(1880, 2100, 2, 3, 460, 620, '#f6e3a1'));
+    // baúl de juguetes, con juguetes asomándose
+    const BAUL = { x0: 1880, x1: 2020, z0: 108, z1: 190 };
+    mueble(2,
+      caja(BAUL.x0, BAUL.x1, 0, 70, BAUL.z0, BAUL.z1, '#d9534f'),
+      caja(BAUL.x0 - 4, BAUL.x1 + 4, 70, 80, BAUL.z0 - 4, BAUL.z1 + 4, '#e8746f'),
+      caja(1900, 1930, 80, 112, 130, 160, '#4f8fd8'), caja(1945, 1965, 80, 125, 140, 165, '#5dbb6a'),
+      caja(1980, 2005, 80, 100, 125, 150, '#f2b33d'));
+    // repisa baja con libros de colores
+    mueble(2,
+      caja(1730, 1850, 0, 8, 104, 150, MADERA), caja(1730, 1850, 80, 88, 104, 150, MADERA), caja(1730, 1850, 152, 160, 104, 150, MADERA),
+      caja(1730, 1738, 0, 160, 104, 150, MADERA_OSCURA), caja(1842, 1850, 0, 160, 104, 150, MADERA_OSCURA),
+      ...['#e5533d', '#4f8fd8', '#9b6bd3', '#5dbb6a', '#f08a3c'].map((col, i) => caja(1745 + i * 18, 1759 + i * 18, 8, 60 + (i % 2) * 12, 110, 144, col)),
+      ...['#f2b33d', '#e86fa8', '#41b8b0'].map((col, i) => caja(1750 + i * 26, 1770 + i * 26, 88, 130 - i * 8, 110, 144, col)));
+    // puf para sentarse y lamparita de noche
+    const PUF = [2200, 0, 620];
+    mueble(2, caja(2160, 2240, 0, 42, 580, 660, '#9b6bd3'), caja(2165, 2235, 42, 46, 585, 655, '#b48be0'));
+    mueble(2, caja(2300, 2360, 0, 60, 380, 440, MADERA), caja(2318, 2342, 60, 108, 398, 422, '#fff2b8'));
+
+    function crearPersonaje(datos) {
+      return {
+        pos: { x: 0, z: 0 }, vel: { x: 0, z: 0 }, mente: menteNueva(), golpe: golpeNuevo(),
+        pelo: { curva: 1, vCurva: 0, atras: 0, vAtras: 0, t: 0 },
+        cabeza: { giro: 0, inclina: 0, ladeo: 0 },
+        brazos: { [-1]: { adelante: 0, abre: 0 }, [1]: { adelante: 0, abre: 0 } },
+        pupila: { x: 0, y: 0 }, manos: { [1]: null, [-1]: null },
+        orientacion: 0, altura: 0, velY: 0, fasePaso: 0, fuerzaPaso: 0, desplazPaso: 0, ultimaOrden: -99,
+        cuerpoY: 0, enElAire: 0, corriendo: 0, manoMundo: null, cabezaMundo: null,
+        ojoAnterior: [0, -300, 600], inclinaSusto: [0, 0],
+        ...datos,
+      };
+    }
+    // El grande usa lo que ya estaba armado arriba
+    const GRANDE = crearPersonaje({
+      nombre: 'grande', escala: 1, rapidez: 1,
+      pos, vel, mente, golpe, pelo, cabeza, brazos, pupila, manos,
+      dom: { jugador, personaje, sombra },
+      cama: { lado: LADO_CAMA, acostado: ACOSTADO },
+    });
+    // El pequeño: más chico, más rápido, más juguetón y con dos mechones
+    const domChico = jugador.cloneNode(true);
+    mundo.appendChild(domChico);
+    const CHICO = crearPersonaje({
+      nombre: 'pequeño', escala: 0.65, rapidez: 1.15, dosMechones: true,
+      pos: { x: -250, z: 250 }, orientacion: 0.6,
+      dom: { jugador: domChico, personaje: domChico.querySelector('.personaje'), sombra: domChico.querySelector('.sombra') },
+      cama: { lado: [2250, 0, 420], acostado: { x: CAMITA.x0 + 20, z: (CAMITA.z0 + CAMITA.z1) / 2, altura: CAMITA.colchon + 70 * 0.65 } },
+    });
+    Object.assign(CHICO.mente, { animo: 'jugueton', animos: { jugueton: 3, curioso: 1.5, tranquilo: 0.8, aburrido: 0.6 } });
+    GANAS.jugueton = { pasear: 1, brincar: 2, saludar: 0.8, patear: 1.8, lanzar: 1.8, malabares: 1.2, encestar: 1.5,
+                       cabeza: 1.2, pintar: 1, boton: 1.2, perseguir: 1, jugarCon: 0.9, molestar: 0.7, saludarOtro: 0.4 };
+    // lo que hace el pequeño en su pieza (en cualquier ánimo)
+    const GANAS_DEL_CHICO = { suPieza: 1.4, juguetes: 1.6, puf: 1 };
+    RITMO_ANIMO.jugueton = 0.85;
+    // al grande también le dan ganas de jugar con el pequeño (o de molestarlo)
+    Object.assign(GANAS.curioso, { jugarCon: 1, saludarOtro: 0.6, perseguir: 0.4 });
+    Object.assign(GANAS.tranquilo, { jugarCon: 0.8, saludarOtro: 0.7 });
+    Object.assign(GANAS.aburrido, { molestar: 0.5 });
+    const PJS = [GRANDE, CHICO];
+    let CONTROL = GRANDE;   // a quién mueves con las teclas (1 = grande, 2 = pequeño)
+    let yo = GRANDE;        // el personaje cargado
+
+    function cargar(p) {
+      yo = p;
+      ({ pos, vel, mente, golpe, pelo, cabeza, brazos, pupila, manos } = p);
+      ({ jugador, personaje, sombra } = p.dom);
+      LADO_CAMA = p.cama.lado; ACOSTADO = p.cama.acostado;
+      ({ orientacion, altura, velY, fasePaso, fuerzaPaso, desplazPaso, ultimaOrden,
+         cuerpoY, enElAire, corriendo, manoMundo, cabezaMundo, ojoAnterior, inclinaSusto } = p);
+    }
+    function guardar(p) {
+      Object.assign(p, { orientacion, altura, velY, fasePaso, fuerzaPaso, desplazPaso, ultimaOrden,
+                         cuerpoY, enElAire, corriendo, manoMundo, cabezaMundo, ojoAnterior, inclinaSusto });
+    }
+    function conPersonaje(p, fn) {
+      const antes = yo;
+      if (antes !== p) { guardar(antes); cargar(p); }
+      const r = fn();
+      if (antes !== p) { guardar(p); cargar(antes); }
+      return r;
+    }
+
+    // ---- Cómo se llevan: de -1 (mal) a 1 (muy bien) ----
+    const RELACION = { v: 0.35 };
+    const otroDe = p => PJS.find(q => q !== p);
+    const cambiarRelacion = d => { RELACION.v = limitar(RELACION.v + d, [-1, 1]); };
+    function relacionConElTiempo(dt) { RELACION.v += (0.2 - RELACION.v) * 0.012 * dt; }   // con el tiempo se les pasa
+    const autonomo = () => reloj - ultimaOrden > QUIETO_PARA_VIVIR;
+    const distA = q => Math.hypot(q.pos.x - pos.x, q.pos.z - pos.z);
+    const libreParaJugar = () => autonomo() && mente.acostado === 0 && mente.tirado === 0 &&
+                                 !['celebrar', 'pataleta', 'golpeado'].includes(mente.accion);
+
+    // No se atraviesan: si quedan muy juntos, se separan un poco
+    function separar() {
+      const [a, b] = PJS;
+      if (a.mente.acostado > 0 || b.mente.acostado > 0) return;
+      const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, d = Math.hypot(dx, dz) || 0.01;
+      const min = 75 * a.escala + 75 * b.escala;
+      if (d >= min) return;
+      const empuje = (min - d) / 2, ux = dx / d, uz = dz / d;
+      for (const [p, s] of [[a, -1], [b, 1]]) {
+        const nx = p.pos.x + ux * empuje * s, nz = p.pos.z + uz * empuje * s;
+        if (libre(nx, nz)) { p.pos.x = nx; p.pos.z = nz; }
+      }
+    }
+
+    // Cuando no tiene nada que mirar y el otro está cerca, a veces lo mira
+    function mirarAlOtro(aLocal) {
+      const o = otroDe(yo);
+      if (!o || distA(o) > 520 || Math.sin(reloj * 0.35 + yo.escala * 9) < 0.35) return null;
+      return aLocal(o.cabezaMundo || [o.pos.x, -200, o.pos.z]);
+    }
+
+    // ---- Las cosas que hacen juntos ----
+    // perseguir: corre a pillar al otro (si se llevan bien, el otro escapa jugando)
+    // jugarCon: se pasan un cubo · saludarOtro: se saludan · molestar / empujar: lo empuja
+    function empezarConOtro(tipo) {
+      const o = otroDe(yo);
+      mente.juego = { tipo, con: o, fase: 'ir', t: 10, repensar: 0 };
+      mente.tAccion = 14;
+      if (tipo === 'perseguir') {
+        mente.corre = true;
+        mente.aviso = '¡te voy a pillar!'; mente.tAviso = 1.6;
+        const yoMismo = yo;
+        conPersonaje(o, () => {
+          if (libreParaJugar() && RELACION.v > -0.4) {
+            soltarCubo();
+            Object.assign(mente, { accion: 'escapar', juego: { tipo: 'escapar', de: yoMismo, t: 10, repensar: 0 },
+                                   tAccion: 10, corre: true, meta: null, ruta: [], giroForzado: null });
+            mente.aviso = '¡no me pillas!'; mente.tAviso = 1.6;
+          }
+        });
+      }
+      if (tipo === 'jugarCon') {
+        // primero va a buscar un cubo
+        const libres = cubosLibres('jugarCon').sort((a, b) => Math.hypot(a.x - pos.x, a.z - pos.z) - Math.hypot(b.x - pos.x, b.z - pos.z));
+        if (!libres.length) { mente.juego = null; mente.tAccion = 0; return; }
+        Object.assign(mente.juego, { fase: 'buscar', cubo: libres[0] });
+        irA(dentroDelCuarto(CUARTOS[cuartoDe(libres[0].x)], libres[0].x, libres[0].z));
+        mente.tAccion = 30;
+      }
+    }
+    // va hacia el otro (pasando por la puerta si está en la otra habitación)
+    function seguirA(j, o, dt) {
+      j.repensar -= dt;
+      if (j.repensar <= 0) {
+        j.repensar = 0.5;
+        irA(dentroDelCuarto(CUARTOS[cuartoDe(o.pos.x)], o.pos.x, o.pos.z));
+        if (mente.noCabe) {   // se metió donde él no cabe
+          mente.aviso = cuartoDe(pos.x) === 1 && Math.hypot(pos.x - PUERTAS[1].x, pos.z - 260) < 450 ? '¡no quepo!' : 'bueno...';
+          mente.tAviso = 1.8; mente.tAccion = 0; mente.juego = null;
+          if (Math.random() < 0.5) { mente.molesto = 3; mente.molestoPor = 'tiros'; }
+        }
+      }
+    }
+    // lo empuja (si se llevan bien se ríe; si no, se enoja)
+    function empujarA(o, fuerte) {
+      const dx = o.pos.x - pos.x, dz = o.pos.z - pos.z, d = Math.hypot(dx, dz) || 1;
+      const yoMismo = yo;
+      mente.giroForzado = Math.atan2(dx, dz);
+      conPersonaje(o, () => {
+        const ux = dx / d, uz = dz / d;
+        // al cuerpo del otro: hacia dónde lo empujan, en sus coordenadas
+        const lx = ux * Math.cos(orientacion) - uz * Math.sin(orientacion);
+        const lz = ux * Math.sin(orientacion) + uz * Math.cos(orientacion);
+        golpe.vx += lz * 260; golpe.vz += -lx * 260;
+        golpe.empuje = [golpe.empuje[0] + ux * (fuerte ? 520 : 380), golpe.empuje[1] + uz * (fuerte ? 520 : 380)];
+        golpe.t = 0.5;
+        if (altura === 0 && mente.acostado === 0) velY = 200;
+        if (mente.acostado > 0) {   // ¡lo despertó!
+          mente.accion = 'levantarse'; mente.aviso = '¡déjame dormir!'; mente.tAviso = 2;
+          cambiarRelacion(-0.15);
+          return;
+        }
+        if (RELACION.v > 0.35 && !fuerte) {
+          mente.aviso = '¡jaja, para!'; mente.tAviso = 1.6;
+          if (libreParaJugar() && Math.random() < 0.6) { soltarCubo(); mente.despues = 'perseguir'; mente.tAccion = 0.4; }
+          cambiarRelacion(-0.03);
+        } else {
+          mente.aviso = '¡oye!'; mente.tAviso = 1.6;
+          Object.assign(mente, { molesto: 5, molestoPor: 'otro' });
+          cambiarRelacion(fuerte ? -0.15 : -0.1);
+          if (libreParaJugar()) {
+            soltarCubo();
+            Object.assign(mente, { accion: 'enojado', tAccion: 1.6, meta: null, ruta: [], mirarA: { pj: yoMismo } });
+            // se la devuelve... o el pequeño se va a su pieza
+            if (yo.escala < 0.8 && Math.random() < 0.5) mente.despues = 'suPieza';
+            else if (Math.random() < 0.45) mente.despues = 'empujar';
+          }
+        }
+      });
+    }
+    // le tira el cubo al otro, a la mano
+    function lanzarAlOtro(c, o) {
+      const prob = 0.5 + 0.4 * Math.max(0, RELACION.v) - (o === CONTROL && !conPersonaje(o, autonomo) ? 0.25 : 0);
+      c.estado = 'vuelo'; c.paso = true; c.pase = true;
+      c.vueloMalabar = { desde: manos[1].slice(), sy: c.y, hacia: 1, t0: reloj, T: 0.9, alto: 130,
+                         agarra: Math.random() < prob, dueno: o };
+      c.pases = (c.pases || 0) + 1;
+      c.iba = o;
+    }
+    // lo que pasa cada cuadro en estos juegos
+    function jugandoConOtro(j, dt) {
+      const o = j.con || j.de;
+      if (j.tipo === 'perseguir') {
+        seguirA(j, o, dt);
+        mente.corre = true;
+        if (distA(o) < 85 * (yo.escala + o.escala)) {           // ¡lo pilló!
+          mente.aviso = '¡te pillé!'; mente.tAviso = 1.6;
+          cambiarRelacion(0.06);
+          mente.despues = 'celebrar'; mente.tAccion = 0; mente.juego = null;
+          const yoMismo = yo;
+          conPersonaje(o, () => {
+            if (mente.accion === 'escapar') {
+              mente.aviso = RELACION.v > 0.2 ? '¡jaja!' : '¡uf!'; mente.tAviso = 1.4;
+              mente.tAccion = 0; mente.juego = null;
+              if (RELACION.v > 0.3 && Math.random() < 0.5) mente.despues = 'perseguir';   // ahora le toca a él
+            }
+            mente.mirarA = { pj: yoMismo };
+          });
+        } else if (j.t <= 0) { mente.aviso = 'me cansé...'; mente.tAviso = 1.4; mente.tAccion = 0; mente.juego = null; }
+        return;
+      }
+      if (j.tipo === 'escapar') {
+        j.repensar -= dt;
+        // el pequeño a veces se va a su pieza, donde el grande no cabe
+        if (j.refugio === undefined) j.refugio = yo.escala < 0.8 && o.escala >= 0.8 && Math.random() < 0.5;
+        if (j.refugio) {
+          if (cuartoDe(pos.x) === 2) {
+            if (!j.avisado) { j.avisado = true; mente.aviso = '¡aquí no puedes entrar!'; mente.tAviso = 2; mente.giroForzado = -Math.PI / 2; }
+            mente.meta = null; mente.ruta = [];
+            mente.mirarA = { pj: o };
+          } else if (j.repensar <= 0) { j.repensar = 1.5; irA([PIEZA.x0 + MARGEN + 80, 0, 280]); }
+          if (j.t <= 0 || o.mente.accion !== 'perseguir') { mente.tAccion = 0; mente.juego = null; }
+          return;
+        }
+        if (j.repensar <= 0) {
+          j.repensar = 0.6;
+          const dx = pos.x - o.pos.x, dz = pos.z - o.pos.z, d = Math.hypot(dx, dz) || 1;
+          const a = Math.atan2(dx, dz) + azarEntre(-0.8, 0.8);
+          mente.meta = dentroDelCuarto(CUARTOS[cuartoDe(pos.x)], pos.x + Math.sin(a) * 350, pos.z + Math.cos(a) * 350);
+          mente.ruta = [];
+          if (Math.hypot(mente.meta[0] - pos.x, mente.meta[2] - pos.z) < 60) {   // acorralado: hacia el otro lado
+            mente.meta = dentroDelCuarto(CUARTOS[cuartoDe(pos.x)], pos.x - Math.sin(a) * 350, pos.z + Math.cos(a) * 300);
+          }
+        }
+        mente.corre = true;
+        if (j.t <= 0 || o.mente.accion !== 'perseguir') { mente.tAccion = 0; mente.juego = null; }
+        return;
+      }
+      if (j.tipo === 'saludarOtro' || j.tipo === 'molestar' || j.tipo === 'empujar') {
+        if (j.fase === 'ir') {
+          seguirA(j, o, dt);
+          // (no pueden estar a menos de 75 × la suma de sus tamaños: ver separar)
+          if (distA(o) < (j.tipo === 'saludarOtro' ? 240 : 75 * (yo.escala + o.escala) + 30)) {
+            mente.meta = null; mente.ruta = [];
+            mente.giroForzado = Math.atan2(o.pos.x - pos.x, o.pos.z - pos.z);
+            mente.mirarA = { pj: o };
+            if (j.tipo === 'saludarOtro') {
+              Object.assign(j, { fase: 'hola', t: 2.4 });
+              mente.aviso = RELACION.v > 0.4 ? '¡amigo!' : '¡hola!'; mente.tAviso = 1.6;
+              cambiarRelacion(0.06);
+              const yoMismo = yo;
+              conPersonaje(o, () => {
+                if (libreParaJugar()) {
+                  soltarCubo();
+                  Object.assign(mente, { accion: 'saludarOtro', juego: { tipo: 'responder', de: yoMismo, t: 2.4 }, tAccion: 2.4,
+                                         meta: null, ruta: [], mirarA: { pj: yoMismo },
+                                         giroForzado: Math.atan2(yoMismo.pos.x - pos.x, yoMismo.pos.z - pos.z) });
+                  if (RELACION.v > 0.4) { mente.saltosPend = 1; mente.tSalto = 0.4; }
+                }
+              });
+            } else {
+              empujarA(o, j.tipo === 'empujar');
+              mente.aviso = j.tipo === 'empujar' ? '¡toma!' : 'jeje'; mente.tAviso = 1.4;
+              Object.assign(j, { fase: 'reir', t: 1.4 });
+            }
+          } else if (j.t <= 0) { mente.tAccion = 0; mente.juego = null; }
+        }
+        if ((j.fase === 'hola' || j.fase === 'reir') && j.t <= 0) { mente.tAccion = 0; mente.juego = null; }
+        return;
+      }
+      if (j.tipo === 'responder') { if (j.t <= 0) { mente.tAccion = 0; mente.juego = null; } return; }
+      if (j.tipo === 'jugarCon') {
+        const c = j.cubo;
+        if (!c || !CUBOS.includes(c)) { mente.tAccion = 0; mente.juego = null; return; }
+        if (j.fase === 'buscar') {
+          if (c.estado !== 'suelo') { mente.tAccion = 0; mente.juego = null; return; }
+          if (Math.hypot(c.x - pos.x, c.z - pos.z) < 125 * (0.5 + 0.5 * yo.escala) || !mente.meta) {
+            Object.assign(c, { estado: 'mano', mano: 1, pila: 0, dueno: yo, pases: 0 });
+            Object.assign(j, { fase: 'acercarse', repensar: 0, total: 4 + Math.floor(Math.random() * 5) });
+          }
+          return;
+        }
+        // invita al otro a jugar
+        if (j.fase === 'acercarse') {
+          const d = distA(o);
+          if (d > 420) seguirA(j, o, dt);
+          else {
+            mente.meta = null; mente.ruta = [];
+            j.fase = 'pasar'; j.t = 0.8;
+            const yoMismo = yo;
+            conPersonaje(o, () => {
+              if (libreParaJugar()) {
+                soltarCubo();
+                Object.assign(mente, { accion: 'jugarCon', juego: { tipo: 'jugarCon', con: yoMismo, cubo: c, fase: 'pasar', t: 99, total: j.total },
+                                       tAccion: 30, meta: null, ruta: [] });
+                mente.aviso = '¡tira!'; mente.tAviso = 1.2;
+              }
+            });
+          }
+          return;
+        }
+        // pasándose el cubo: el que lo tiene, lo tira; el otro mira y lo espera
+        mente.giroForzado = Math.atan2(o.pos.x - pos.x, o.pos.z - pos.z);
+        const tengo = c.estado === 'mano' && c.dueno === yo;
+        mente.mirarA = tengo ? { pj: o } : c;
+        if (tengo) {
+          if (!j.apuntando) { j.apuntando = true; j.t = 0.7; }
+          if (j.t <= 0) {
+            j.apuntando = false;
+            if ((c.pases || 0) >= j.total) {     // ya está: lo deja y celebran los dos
+              c.estado = 'suelo'; c.pase = false;
+              cambiarRelacion(0.1);
+              mente.aviso = `¡${c.pases} pases!`; mente.tAviso = 1.8;
+              mente.despues = 'celebrar'; mente.tAccion = 0; mente.juego = null;
+              conPersonaje(o, () => { if (mente.juego && mente.juego.tipo === 'jugarCon') { mente.despues = 'celebrar'; mente.tAccion = 0; mente.juego = null; } });
+              return;
+            }
+            lanzarAlOtro(c, o);
+          }
+        } else if (c.estado === 'suelo' && !c.vueloMalabar) {   // se cayó
+          c.pase = false;
+          mente.aviso = c.iba === yo ? 'ups' : 'casi...'; mente.tAviso = 1.4;
+          mente.tAccion = 0.8; mente.juego = null;
+        } else if (c.estado === 'mano' && c.dueno === o && !(o.mente.juego && o.mente.juego.tipo === 'jugarCon')) {
+          mente.tAccion = 0; mente.juego = null;                  // el otro dejó de jugar
+        }
+      }
+    }
+    const TIPOS_CON_OTRO = ['perseguir', 'escapar', 'saludarOtro', 'responder', 'molestar', 'empujar', 'jugarCon'];
+
+    // La etiqueta de arriba: cómo está cada uno y cómo se llevan
+    const NOMBRE_ANIMO = { jugueton: 'juguetón' };
+    function actualizarEtiqueta() {
+      const rel = RELACION.v > 0.45 ? 'se llevan muy bien' : RELACION.v > 0.1 ? 'se llevan bien'
+                : RELACION.v > -0.25 ? 'se llevan más o menos' : 'están peleados';
+      const texto = PJS.map(p => `${p === CONTROL ? '▶ ' : ''}${p.nombre}: ${NOMBRE_ANIMO[p.texto] || p.texto || ''}`).join('   ·   ') + '   ·   ' + rel;
+      if (etiquetaAnimo.textContent !== texto) etiquetaAnimo.textContent = texto;
     }
 
     let antes = performance.now();
@@ -2460,12 +2996,17 @@
       moverCamaraConFlechas(dt);
       for (const k of ['giro', 'inclinacion', 'distancia'])
         actual[k] = suavizar(actual[k], objetivo[k], SUAVIDAD_CAM, dt);
-      sentir(dt);
-      mover(dt);
-      saltar(dt);
-      moverPelo(dt);
+      for (const pj of PJS) conPersonaje(pj, () => {
+        sentir(dt);
+        mover(dt);
+        saltar(dt);
+        moverPelo(dt);
+      });
+      separar();
+      relacionConElTiempo(dt);
       moverPuerta(dt);
       moverCubos(dt);
+      actualizarEtiqueta();
       dibujar();
       requestAnimationFrame(animar);
     }
@@ -2483,7 +3024,7 @@
     function parteBajo(e) {
       const r = lienzo.getBoundingClientRect();
       const x = e.clientX - r.left, y = e.clientY - r.top;
-      for (let i = formas.length - 1; i >= 0; i--) if (dentro(x, y, formas[i].pts)) return formas[i].parte;
+      for (let i = formas.length - 1; i >= 0; i--) if (dentro(x, y, formas[i].pts)) return formas[i];
       return null;
     }
 
@@ -2519,17 +3060,18 @@
     // Arrastrar: mover la cámara alrededor del personaje (clic sobre él = golpe)
     let arrastrando = false;
     document.addEventListener('pointerdown', e => {
-      const parte = parteBajo(e);
+      const f = parteBajo(e), parte = f && f.parte;
       if (parte && parte.tipo) { presionar(parte); return; }
       if (parte && parte.color) { patearCubo(parte); return; }
-      if (parte) { golpear(parte); return; }
+      if (parte && f.pj) { conPersonaje(f.pj, () => golpear(parte)); return; }
       arrastrando = true;
       document.body.setPointerCapture(e.pointerId);
       document.body.classList.add('arrastrando');
     });
     document.addEventListener('pointermove', e => {
       if (!arrastrando) {
-        document.body.classList.toggle('sobre', !!parteBajo(e));
+        const f = parteBajo(e);
+        document.body.classList.toggle('sobre', !!(f && f.parte));
         return;
       }
       objetivo.giro += e.movementX * SENSIBILIDAD;
