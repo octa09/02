@@ -9,9 +9,6 @@
       /* Huella de la sombra en el piso */
       --ancho: 160px;
       --fondo: 170px;
-      /* El cuarto (una caja): ancho/fondo y alto */
-      --cuarto: 1400px;
-      --alto-cuarto: 760px;
     }
 
     html, body {
@@ -24,13 +21,14 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #26232d;   /* lo que hay fuera del cuarto */
+      background: #26232d;   /* lo que hay fuera de la casa */
       perspective: 900px;
       touch-action: none;
       user-select: none;
       cursor: grab;
     }
     body.arrastrando { cursor: grabbing; }
+    body.sobre { cursor: pointer; }   /* el mouse está sobre el personaje */
 
     /* El mundo: piso, sombra y rectángulo. No se mueve solo;
        la "cámara" se controla con el mouse desde el script. */
@@ -42,23 +40,18 @@
       transform-style: preserve-3d;
     }
 
-    /* ---- El cuarto: piso, 4 paredes y techo ----
-       Cada superficie solo se ve por su lado de adentro (backface-visibility: hidden),
-       así la pared que queda entre la cámara y el personaje desaparece sola:
-       la cámara es la "cuarta pared". La luz cálida viene del centro del techo. */
-    .pared, .piso, .techo {
+    /* ---- La casa: dos habitaciones unidas por una puerta ----
+       El script arma el piso, las paredes y el techo de cada habitación (tamaño y
+       posición); aquí solo va su aspecto. Cada superficie se ve solo por su lado de
+       adentro, y las paredes que quedan entre la cámara y el personaje se esconden:
+       la cámara es la "cuarta pared". */
+    .piso, .techo, .pared, .lampara {
       position: absolute;
       backface-visibility: hidden;
       -webkit-backface-visibility: hidden;
     }
-    .piso, .techo {
-      width: var(--cuarto);
-      height: var(--cuarto);
-      left: calc(var(--cuarto) / -2);
-      top: calc(var(--cuarto) / -2);
-    }
+    /* Habitación 1: cálida, color arena */
     .piso {
-      transform: rotateX(90deg);
       background:
         linear-gradient(rgba(120, 80, 40, 0.10) 1px, transparent 1px),
         linear-gradient(90deg, rgba(120, 80, 40, 0.10) 1px, transparent 1px),
@@ -66,37 +59,30 @@
       background-size: 70px 70px, 70px 70px, 100% 100%;
       background-position: center;
     }
-    .techo {
-      transform: translate3d(0, calc(var(--alto-cuarto) * -1), 0) rotateX(-90deg);
-      background: radial-gradient(circle at 50% 50%, #fff6e2 0%, #e9dcc7 25%, #a99a87 100%);
-    }
+    .techo { background: radial-gradient(circle at 50% 50%, #fff6e2 0%, #e9dcc7 25%, #a99a87 100%); }
     .pared {
-      width: var(--cuarto);
-      height: var(--alto-cuarto);
-      left: calc(var(--cuarto) / -2);
-      top: calc(var(--alto-cuarto) / -2);
-      /* más clara arriba al centro (cerca de la luz), más oscura abajo y en las esquinas */
       background:
         radial-gradient(ellipse 70% 90% at 50% 0%, rgba(255, 236, 200, 0.55), rgba(255, 236, 200, 0) 70%),
         linear-gradient(#e6d8c4, #cdbca6 70%, #b7a58f);
     }
-    .pared.atras     { transform: translate3d(0, calc(var(--alto-cuarto) / -2), calc(var(--cuarto) / -2)); }
-    .pared.adelante  { transform: translate3d(0, calc(var(--alto-cuarto) / -2), calc(var(--cuarto) / 2)) rotateY(180deg); }
-    .pared.izquierda { transform: translate3d(calc(var(--cuarto) / -2), calc(var(--alto-cuarto) / -2), 0) rotateY(90deg); }
-    .pared.derecha   { transform: translate3d(calc(var(--cuarto) / 2), calc(var(--alto-cuarto) / -2), 0) rotateY(-90deg); }
-
-    /* La lámpara en el centro del techo */
+    /* Habitación 2: paredes verde salvia y piso de tablas de madera */
+    .piso.dos {
+      background:
+        linear-gradient(90deg, rgba(60, 35, 15, 0.16) 2px, transparent 2px),
+        radial-gradient(circle at 50% 50%, #d9b48a 0%, #c19a70 50%, #8f6f4f 100%);
+      background-size: 90px 100%, 100% 100%;
+      background-position: center;
+    }
+    .techo.dos { background: radial-gradient(circle at 50% 50%, #fff4dc 0%, #dfe3cf 25%, #98a08a 100%); }
+    .pared.dos {
+      background:
+        radial-gradient(ellipse 70% 90% at 50% 0%, rgba(255, 236, 200, 0.45), rgba(255, 236, 200, 0) 70%),
+        linear-gradient(#cfd8c3, #b3bfa6 70%, #9aa58d);
+    }
+    /* La lámpara en el centro de cada techo */
     .lampara {
-      position: absolute;
-      width: 90px;
-      height: 90px;
-      left: -45px;
-      top: -45px;
       border-radius: 50%;
-      transform: translate3d(0, calc(var(--alto-cuarto) * -1 + 1px), 0) rotateX(-90deg);
       background: radial-gradient(circle, #fffbea 0%, #ffe9b8 40%, rgba(255, 220, 160, 0) 72%);
-      backface-visibility: hidden;
-      -webkit-backface-visibility: hidden;
     }
 
     .jugador {
@@ -163,14 +149,7 @@
 </head>
 <body>
   <div class="mundo">
-    <!-- El cuarto -->
-    <div class="piso"></div>
-    <div class="techo"></div>
-    <div class="lampara"></div>
-    <div class="pared atras"></div>
-    <div class="pared adelante"></div>
-    <div class="pared izquierda"></div>
-    <div class="pared derecha"></div>
+    <!-- Las habitaciones las arma el script -->
     <!-- El jugador: personaje + su sombra, se mueven juntos -->
     <div class="jugador">
       <div class="sombra"></div>
@@ -180,7 +159,7 @@
 
   <canvas id="pelota"></canvas>
 
-  <div class="ayuda">W A S D: mover · Espacio: saltar · Flechas o arrastrar: mover la cámara · Rueda: zoom · Si lo dejas solo, hace su vida</div>
+  <div class="ayuda">W A S D: mover · Espacio: saltar · Arrastrar o flechas: cámara · Rueda: zoom · Clic en él: un golpecito · Clic en un cubo: patearlo · Botón rojo: más cubos · Botón azul: volver a empezar · Déjalo solo y hace su vida</div>
   <div class="animo">curioso</div>
 
   <script>
@@ -529,9 +508,16 @@
     const SUAVIDAD_SEGUIR = 8;
     const VELOCIDAD       = 320;
     const ACELERACION     = 10;
-    const CUARTO          = 1400;  // tamaño del cuarto (igual que --cuarto)
-    const ALTO_CUARTO     = 760;   // alto del cuarto (igual que --alto-cuarto)
-    const BORDE           = CUARTO / 2 - 130;  // no atravesar las paredes
+    // ---- La casa ----
+    const ALTO_CUARTO = 760;   // alto de las paredes
+    const CUARTOS = [
+      { x0: -700, x1: 700,  z0: -700, z1: 700, clase: '' },     // habitación 1
+      { x0: 700,  x1: 1700, z0: -700, z1: 700, clase: 'dos' },  // habitación 2
+    ];
+    for (const c of CUARTOS) c.luz = [(c.x0 + c.x1) / 2, -(ALTO_CUARTO - 40), (c.z0 + c.z1) / 2];
+    const PUERTA = { x: 700, z0: -150, z1: 150, alto: 440 };   // en la pared que comparten
+    const MARGEN = 130;        // qué tan cerca de la pared puede llegar el personaje
+    const HOLGURA_PUERTA = 75; // medio ancho del personaje al pasar por la puerta
     const GIRO_FLECHAS    = 100;
     const ALTURA_FLECHAS  = 60;
     const GIRO_CUERPO     = 12;
@@ -552,6 +538,19 @@
       valor + (meta - valor) * (1 - Math.exp(-rapidez * dt));
     const azarEntre = (a, b) => a + Math.random() * (b - a);
 
+    // Zonas donde puede pararse: cada habitación (sin pegarse a las paredes) y el paso de la puerta
+    const ZONAS = [
+      ...CUARTOS.map(c => [c.x0 + MARGEN, c.x1 - MARGEN, c.z0 + MARGEN, c.z1 - MARGEN]),
+      [PUERTA.x - MARGEN - 60, PUERTA.x + MARGEN + 60, PUERTA.z0 + HOLGURA_PUERTA, PUERTA.z1 - HOLGURA_PUERTA],
+    ];
+    const PASO_PUERTA = ZONAS[ZONAS.length - 1];
+    const libre = (x, z) =>
+      ZONAS.some(z4 => (z4 !== PASO_PUERTA || puertaAbierta()) && x >= z4[0] && x <= z4[1] && z >= z4[2] && z <= z4[3]) &&
+      !OBSTACULOS.some(([a, b, c, d]) => x > a && x < b && z > c && z < d);
+    const cuartoDe = x => x < PUERTA.x ? 0 : 1;
+    const dentroDelCuarto = (c, x, z) =>
+      [limitar(x, [c.x0 + MARGEN, c.x1 - MARGEN]), 0, limitar(z, [c.z0 + MARGEN, c.z1 - MARGEN])];
+
     const pos = { x: 0, z: 0 };
     const vel = { x: 0, z: 0 };
     const camPos = { x: 0, z: 0 };
@@ -568,6 +567,7 @@
       animo: 'curioso', tAnimo: 20,
       accion: 'quieto', tAccion: 1.5,
       meta: null,            // a dónde camina
+      ruta: [],              // los tramos que le faltan (por ejemplo, pasar por la puerta)
       mirarA: null,          // 'camara', 'lampara' o un punto del cuarto
       giroForzado: null,     // hacia dónde gira el cuerpo cuando no camina
       saltosPend: 0, tSalto: 0,
@@ -575,13 +575,38 @@
       sentado: 0, susto: 0,
       bloqueo: 0, huida: [0, 0], tPared: 0,
       tParpadeo: 3, parpadeando: 0,
+      molesto: 0,            // si le pegas muchas veces seguidas, se aleja de ti
+      dedo: 0,               // cuánto tiempo le queda mostrándote el dedo
+      acostado: 0,           // 0 = de pie, 1 = acostado en la cama
+      tirado: 0,             // 0 = de pie, 1 = tirado de espaldas en el piso
+      juego: null,           // encestar: { fase, cubo, t }
+      tiro: null,            // el último lanzamiento, para celebrar o lamentarse
+      aviso: '', tAviso: 0,  // un texto corto por un rato ("¡encesté!")
+      molestoPor: '',        // 'golpes' (se aleja y te saca el dedo) o 'tiros' (pataleta)
+      fallos: 0,             // tiros al aro errados seguidos
+      nivelMalabar: 0,       // va aprendiendo malabares de a poco (sube cada vez que practica)
+      despues: null,         // lo que hará al terminar lo que está haciendo
+    };
+
+    // Golpe con el mouse: el cuerpo se tambalea como un resorte
+    const golpe = {
+      tx: 0, vx: 0, tz: 0, vz: 0,   // tambaleo del cuerpo (grados)
+      cab: 0, vCab: 0, lado: 1,      // sacudida de la cabeza
+      empuje: [0, 0],                // lo que lo desliza por el piso
+      t: 0,                          // tiempo que dura la reacción
+      veces: [],
     };
 
     // Qué le dan ganas de hacer según su ánimo (más número = más seguido)
     const GANAS = {
-      curioso:   { pasear: 3, camara: 2, mirarPunto: 1, brincar: 2, saludar: 1.5 },
-      tranquilo: { pasear: 2, lampara: 1.5, camara: 1, mirarPunto: 2 },
-      aburrido:  { sentarse: 3, pasear: 1, mirarPunto: 1 },
+      // curioso: sobre todo experimenta con los cubos
+      curioso:   { pasear: 1.5, camara: 1.2, mirarPunto: 0.6, brincar: 1, saludar: 1,
+                   encestar: 2, apilar: 1.5, malabares: 1.5, patear: 1, boton: 1, lanzar: 1, cabeza: 1.5, tirarse: 0.2 },
+      // tranquilo: también le gustan los cubos, pero con calma
+      tranquilo: { pasear: 1.2, lampara: 1, camara: 0.8, mirarPunto: 1, encestar: 1.5, apilar: 1.5, malabares: 1.5,
+                   cabeza: 1, lanzar: 0.4, dormir: 0.5, tirarse: 0.5 },
+      // aburrido: patea o tira los cubos a cualquier parte, o se tira al piso
+      aburrido:  { sentarse: 1, pasear: 0.6, mirarPunto: 0.6, dormir: 1.5, patear: 2.5, lanzar: 2, tirarse: 1.5 },
     };
     const RITMO_ANIMO = { curioso: 0.75, tranquilo: 0.42, aburrido: 0.3 };
 
@@ -594,19 +619,42 @@
     }
 
     function nuevaAccion() {
-      const a = elegir(GANAS[mente.animo]);
-      Object.assign(mente, { accion: a, meta: null, mirarA: null, giroForzado: null, saltosPend: 0 });
-      const s = CUARTO / 2;
+      if (mente.despues === 'celebrar') { mente.despues = null; celebrar(); return; }
+      if (mente.despues === 'encestar') {   // sigue tirando hasta que entre (o se enoje)
+        mente.despues = null;
+        Object.assign(mente, { accion: 'encestar', meta: null, ruta: [], mirarA: null, giroForzado: null, saltosPend: 0 });
+        empezarJuego('encestar');
+        return;
+      }
+      mente.despues = null;
+      if (mente.molesto > 0 && mente.molestoPor === 'golpes') {
+        // se aleja de la cámara (de ti)
+        const l = Math.hypot(ojoAnterior[0], ojoAnterior[2]) || 1;
+        const lx = -ojoAnterior[0] / l, lz = -ojoAnterior[2] / l;
+        const wx = lx * Math.cos(orientacion) + lz * Math.sin(orientacion);
+        const wz = -lx * Math.sin(orientacion) + lz * Math.cos(orientacion);
+        Object.assign(mente, { accion: 'huir', mirarA: null, giroForzado: null, saltosPend: 0, tAccion: 5, ruta: [] });
+        mente.meta = dentroDelCuarto(CUARTOS[cuartoDe(pos.x)], pos.x + wx * 450, pos.z + wz * 450);
+        return;
+      }
+      const a = mente.cansado > 0 && Math.random() < 0.6 ? 'dormir'
+              : mente.molesto > 0 && Math.random() < 0.5 ? 'patear'      // enojado por los tiros: patea un cubo
+              : elegir(GANAS[mente.animo]);
+      Object.assign(mente, { accion: a, meta: null, ruta: [], mirarA: null, giroForzado: null, saltosPend: 0, juego: null });
+      const aqui = CUARTOS[cuartoDe(pos.x)];
       switch (a) {
-        case 'pasear':
-          mente.meta = [azarEntre(-BORDE, BORDE) * 0.85, 0, azarEntre(-BORDE, BORDE) * 0.85];
-          mente.tAccion = 12;
+        case 'pasear': {
+          // a veces se cambia de habitación
+          const c = Math.random() < 0.35 ? CUARTOS[1 - cuartoDe(pos.x)] : aqui;
+          irA(dentroDelCuarto(c, azarEntre(c.x0, c.x1), azarEntre(c.z0, c.z1)));
+          mente.tAccion = 16;
           break;
+        }
         case 'camara':  mente.mirarA = 'camara';  mente.tAccion = azarEntre(2, 4.5); break;
         case 'lampara': mente.mirarA = 'lampara'; mente.tAccion = azarEntre(2, 4); break;
         case 'mirarPunto': {
-          const u = azarEntre(-s, s) * 0.8, h = -azarEntre(100, 520);
-          mente.mirarA = [[-s, h, u], [s, h, u], [u, h, -s], [u, h, s]][Math.floor(Math.random() * 4)];
+          const u = azarEntre(aqui.z0, aqui.z1) * 0.8, w = azarEntre(aqui.x0 + 100, aqui.x1 - 100), h = -azarEntre(100, 520);
+          mente.mirarA = [[aqui.x0, h, u], [aqui.x1, h, u], [w, h, aqui.z0], [w, h, aqui.z1]][Math.floor(Math.random() * 4)];
           mente.tAccion = azarEntre(2, 4);
           break;
         }
@@ -617,11 +665,48 @@
           mente.tAccion = 3.5;
           break;
         case 'saludar': mente.mirarA = 'camara'; mente.tAccion = 2.6; break;
-        case 'sentarse':
-          mente.meta = [Math.sign(Math.random() - 0.5) * BORDE * 0.9, 0, Math.sign(Math.random() - 0.5) * BORDE * 0.9];
-          mente.tAccion = 30;
+        case 'dormir':
+          irA(LADO_CAMA);
+          mente.tAccion = 40;
           break;
+        case 'apilar':
+          mente.juego = { tipo: 'apilar', lugar: [azarEntre(-300, 250), 0, azarEntre(-150, 300)], alto: 3 + Math.floor(Math.random() * 2), torre: [] };
+          empezarJuego('apilar');
+          break;
+        case 'encestar': case 'malabares': case 'patear': case 'boton': case 'lanzar': case 'cabeza':
+          empezarJuego(a);
+          break;
+        case 'tirarse':
+          // no sabe qué hacer: va al medio de la habitación grande y se tira de espaldas al piso
+          irA([azarEntre(-250, 250), 0, azarEntre(-250, 250)]);
+          mente.tAccion = 25;
+          break;
+        case 'sentarse': {
+          // a una esquina de alguna habitación
+          const c = CUARTOS[Math.floor(Math.random() * CUARTOS.length)];
+          irA([Math.random() < 0.5 ? c.x0 + MARGEN + 10 : c.x1 - MARGEN - 10, 0,
+               Math.random() < 0.5 ? c.z0 + MARGEN + 10 : c.z1 - MARGEN - 10]);
+          mente.tAccion = 35;
+          break;
+        }
       }
+    }
+
+    // Camina a un punto; si está en la otra habitación, pasa primero por la puerta
+    function irA(destino) {
+      const a = cuartoDe(pos.x), b = cuartoDe(destino[0]);
+      mente.ruta = [];
+      if (a !== b) {
+        const lado = a === 0 ? -1 : 1;
+        mente.ruta.push([PUERTA.x + lado * 190, 0, 0], [PUERTA.x - lado * 190, 0, 0]);
+      }
+      mente.ruta.push(destino);
+      mente.meta = mente.ruta.shift();
+    }
+
+    function celebrar() {
+      Object.assign(mente, { accion: 'celebrar', tAccion: 2, saltosPend: 2, tSalto: 0.7, mirarA: 'camara',
+                             juego: null, meta: null, ruta: [], giroForzado: null });
     }
 
     function cambiarAnimo() {
@@ -639,14 +724,37 @@
         const dx = mente.meta[0] - pos.x, dz = mente.meta[2] - pos.z, d = Math.hypot(dx, dz);
         if (d > 25) {
           dir = [dx / d, dz / d];
-          rapido = RITMO_ANIMO[mente.animo] * Math.min(1, d / 120 + 0.3);
+          rapido = (mente.accion === 'huir' ? 0.95 : RITMO_ANIMO[mente.animo]) * Math.min(1, d / 120 + 0.3);
+        } else if (mente.ruta && mente.ruta.length) {
+          mente.meta = mente.ruta.shift();   // siguiente tramo del camino
+        } else if (mente.accion === 'dormir') {
+          Object.assign(mente, { accion: 'acostarse', meta: null, tAccion: azarEntre(11, 17) });
+        } else if (mente.accion === 'tirarse') {
+          Object.assign(mente, { accion: 'tirado', meta: null, tAccion: azarEntre(4, 8), mirarA: null });
+        } else if (mente.juego) {
+          mente.meta = null;
+          llegoJugando();
         } else if (mente.accion === 'sentarse') {
-          // llegó a la esquina: se sienta mirando hacia el cuarto
+          // llegó a la esquina: se sienta mirando hacia el centro de la habitación
+          const c = CUARTOS[cuartoDe(pos.x)];
           Object.assign(mente, { accion: 'sentado', meta: null, tAccion: azarEntre(6, 11),
-                                 giroForzado: Math.atan2(-pos.x, -pos.z) });
+                                 giroForzado: Math.atan2((c.x0 + c.x1) / 2 - pos.x, (c.z0 + c.z1) / 2 - pos.z) });
         } else mente.tAccion = 0;
       }
-      if (mente.saltosPend > 0) {
+      jugando(dt);
+
+      // celebrar: da una vuelta y salta dos veces
+      if (mente.accion === 'celebrar') {
+        if (mente.tAccion > 1.4) orientacion += dt * 10;
+        mente.tSalto -= dt;
+        if (mente.saltosPend > 0 && mente.tSalto <= 0 && altura === 0) { velY = 520; mente.saltosPend--; mente.tSalto = 0.15; }
+      }
+      // pataleta: saltitos enojados en el lugar
+      if (mente.accion === 'pataleta') {
+        mente.tSalto -= dt;
+        if (mente.tSalto <= 0 && altura === 0) { velY = 260; mente.tSalto = 0.3; }
+      }
+      if (mente.saltosPend > 0 && mente.accion !== 'celebrar') {
         mente.tSalto -= dt;
         if (mente.tSalto <= 0 && altura === 0) {
           brincar();
@@ -658,16 +766,232 @@
       return { dir, rapido };
     }
 
+    // ---- Juegos con los cubos ----
+    // encestar: lo lanza al aro · apilar: arma una torre · malabares: lo tira para arriba y lo agarra
+    // patear: le pega una patada · boton: aprieta el botón para que caigan más cubos
+    function empezarJuego(tipo) {
+      if (tipo === 'boton') {
+        mente.juego = { tipo, fase: 'ir', t: 0 };
+        irA([CUARTOS[0].x0 + MARGEN, 0, BOTONES[0].z]);
+        mente.tAccion = 25;
+        return;
+      }
+      const usados = mente.juego && mente.juego.torre ? mente.juego.torre : [];
+      const otro = cubosLibres(tipo, usados);
+      if (!otro.length) { mente.juego = null; mente.tAccion = 0; return; }
+      const libres = CUBOS.filter(c => c.estado === 'suelo' && !usados.includes(c) &&
+        (tipo !== 'encestar' || Math.hypot(c.x - ARO.x, c.z - ARO.z) > 70));
+      if (!libres.length) { mente.juego = null; mente.tAccion = 0; return; }
+      // el cubo más cercano, con un poco de azar
+      libres.sort((a, b) => Math.hypot(a.x - pos.x, a.z - pos.z) - Math.hypot(b.x - pos.x, b.z - pos.z));
+      const c = libres[Math.floor(Math.random() * Math.min(3, libres.length))];
+      const antes = mente.juego && mente.juego.tipo === tipo ? mente.juego : {};
+      mente.juego = { ...antes, tipo, fase: 'buscar', cubo: c, t: 0 };
+      // para tirar al aro junta 3 o 4 cubos de una vez
+      if (tipo === 'encestar' && !mente.juego.carga) Object.assign(mente.juego, { carga: [], quiere: 3 + Math.floor(Math.random() * 2) });
+      if (tipo === 'malabares' && !mente.juego.cubos) mente.juego.cubos = [];
+      irA(dentroDelCuarto(CUARTOS[cuartoDe(c.x)], c.x, c.z));
+      mente.mirarA = null;
+      mente.tAccion = 30;
+    }
+    const cubosLibres = (tipo, usados = []) => CUBOS.filter(c => c.estado === 'suelo' && !usados.includes(c) &&
+      (tipo !== 'encestar' || Math.hypot(c.x - ARO.x, c.z - ARO.z) > 70));
+    // el siguiente cubo para juntar (el más cercano a donde está)
+    function buscarOtro(j) {
+      const libres = cubosLibres(j.tipo).sort((a, b) => Math.hypot(a.x - pos.x, a.z - pos.z) - Math.hypot(b.x - pos.x, b.z - pos.z));
+      if (!libres.length) return false;
+      Object.assign(j, { fase: 'buscar', cubo: libres[0] });
+      irA(dentroDelCuarto(CUARTOS[cuartoDe(libres[0].x)], libres[0].x, libres[0].z));
+      return true;
+    }
+    const alturaTorre = j => Math.max(0, ...CUBOS.filter(c => c.estado !== 'mano' && Math.abs(c.x - j.lugar[0]) < 30 &&
+                                                         Math.abs(c.z - j.lugar[2]) < 30).map(c => c.y + LADO_CUBO));
+    // llegó a donde iba durante un juego
+    function llegoJugando() {
+      const j = mente.juego, c = j.cubo;
+      if (j.fase === 'buscar') tomarCubo();
+      else if (j.fase === 'ir') {             // frente al botón
+        Object.assign(j, { fase: 'apretar', t: 0.6 });
+        mente.giroForzado = -Math.PI / 2;
+        mente.mirarA = [CUARTOS[0].x0, -140, BOTONES[0].z];
+      } else if (j.fase === 'llevar' && j.tipo === 'encestar') {
+        Object.assign(j, { fase: 'apuntar', t: 0.9 });
+        mente.giroForzado = Math.atan2(ARO.x - pos.x, ARO.z - pos.z);
+        mente.mirarA = [ARO.x, -ARO.alto, ARO.z];
+      } else if (j.fase === 'llevar' && j.tipo === 'apilar') {
+        Object.assign(j, { fase: 'poner', t: 0.6 });
+        mente.giroForzado = Math.atan2(j.lugar[0] - pos.x, j.lugar[2] - pos.z);
+        mente.mirarA = [j.lugar[0], -alturaTorre(j), j.lugar[2]];
+      }
+    }
+    function tomarCubo() {
+      const j = mente.juego, c = j.cubo;
+      if (!CUBOS.includes(c) || c.estado === 'vuelo') { mente.tAccion = 0; return; }
+      mente.meta = null; mente.ruta = [];
+      if (j.tipo === 'patear') {
+        // la patada: sale volando lejos de él
+        const dx = c.x - pos.x, dz = c.z - pos.z, d = Math.hypot(dx, dz) || 1;
+        Object.assign(c, { estado: 'suelo', vx: dx / d * 750, vz: dz / d * 750, vy: 380, y: c.y + 1 });
+        c.giro += 60;
+        mente.giroForzado = Math.atan2(dx, dz);
+        Object.assign(j, { fase: 'mirar', t: 0.35 });
+        mente.mirarA = c;
+        mente.tAccion = 2;
+        return;
+      }
+      c.estado = 'mano'; c.mano = 1; c.pila = 0;
+      if (j.tipo === 'encestar') {
+        // los va apilando en la mano; cuando tiene suficientes, va al aro
+        c.pila = j.carga.length;
+        j.carga.push(c);
+        if (j.carga.length >= j.quiere || !buscarOtro(j)) { j.fase = 'llevar'; irA(PUNTO_TIRO); }
+      }
+      else if (j.tipo === 'apilar') { j.fase = 'llevar'; irA([j.lugar[0], 0, j.lugar[2] + 115]); }
+      else if (j.tipo === 'malabares') {
+        // nivel bajo: lo tira para arriba · nivel medio: lo pasa de una mano a la otra · nivel alto: dos cubos
+        const n = mente.nivelMalabar;
+        j.patron = n < 2.5 ? 'arriba' : n < 5 ? 'pasar' : 'dos';
+        if (j.patron === 'dos' && j.cubos.length === 1) c.mano = -1;
+        j.cubos.push(c);
+        if (j.patron === 'dos' && j.cubos.length < 2 && buscarOtro(j)) return;
+        if (j.patron === 'dos' && j.cubos.length < 2) j.patron = 'pasar';
+        Object.assign(j, { fase: 'malabar', t: 0.6, lanzados: 0,
+                           meta: Math.min(14, 3 + Math.floor(n * 1.5)) * (j.patron === 'dos' ? 2 : 1) });
+        mente.aviso = `malabares · nivel ${Math.floor(n) + 1}`; mente.tAviso = 1.6;
+        mente.giroForzado = orientacion;
+      }
+      else if (j.tipo === 'lanzar') {
+        // lo tira hacia cualquier lado
+        Object.assign(j, { fase: 'apuntarNada', t: 0.6 });
+        mente.giroForzado = orientacion + azarEntre(-2.5, 2.5);
+      } else if (j.tipo === 'cabeza') {
+        // se lo pone en la cabeza y camina tratando de que no se caiga
+        c.estado = 'cabeza';
+        Object.assign(j, { fase: 'equilibrio', t: azarEntre(2.5, 6) });
+        mente.aviso = '¡mira, sin manos!'; mente.tAviso = 2;
+        irA(dentroDelCuarto(CUARTOS[cuartoDe(pos.x)], pos.x + azarEntre(-400, 400), pos.z + azarEntre(-400, 400)));
+      }
+    }
+    // lo que pasa cada cuadro mientras juega
+    function jugando(dt) {
+      const j = mente.juego;
+      if (!j) return;
+      const c = j.cubo;
+      if (c && !CUBOS.includes(c)) { mente.juego = null; mente.tAccion = 0; return; }   // lo borró el botón azul
+      j.t -= dt;
+      // si ya lo alcanza con la mano, no necesita llegar al punto exacto
+      if (j.fase === 'buscar' && c.estado !== 'vuelo' && Math.hypot(c.x - pos.x, c.z - pos.z) < 125) tomarCubo();
+      else if (j.fase === 'buscar' && !mente.meta) mente.tAccion = 0;
+      if (j.fase === 'apretar' && j.t <= 0) {
+        presionar(BOTONES[0]);
+        Object.assign(j, { fase: 'mirarArriba', t: 0 });
+        mente.mirarA = [-600, -650, -600];
+        mente.tAccion = 2.6;
+      }
+      if (j.fase === 'apuntar' && j.t <= 0) {
+        j.carga = j.carga.filter(x => x !== c);   // tira el de arriba de la pila
+        lanzar(c);
+        Object.assign(j, { fase: 'mirar', t: 0.3 });
+        mente.mirarA = c;
+        mente.tAccion = 2.4;
+      }
+      if (j.fase === 'poner' && j.t <= 0) {
+        // lo deja justo arriba de la torre
+        Object.assign(c, { estado: 'suelo', x: j.lugar[0], z: j.lugar[2], y: alturaTorre(j) + 4, vx: 0, vy: 0, vz: 0, giro: 0, vuelta: 0 });
+        j.torre = [...(j.torre || []), c];
+        if (j.torre.length >= j.alto) {
+          Object.assign(j, { fase: 'mirar', t: 0 });
+          mente.mirarA = [j.lugar[0], -alturaTorre(j), j.lugar[2]];
+          mente.aviso = '¡mira mi torre!'; mente.tAviso = 2.2;
+          mente.tAccion = 2.4;
+          mente.despues = 'celebrar';
+        } else empezarJuego('apilar');
+      }
+      if (j.fase === 'apuntarNada' && j.t <= 0) {
+        const a = orientacion, v = azarEntre(350, 600);
+        Object.assign(c, { estado: 'vuelo', paso: true, vx: Math.sin(a) * v, vz: Math.cos(a) * v, vy: azarEntre(350, 650) });
+        Object.assign(j, { fase: 'mirar', t: 0.3 });
+        mente.mirarA = c;
+        mente.tAccion = 2;
+      }
+      if (j.fase === 'equilibrio' && (j.t <= 0 || c.estado !== 'cabeza')) {
+        // se le cae de la cabeza
+        if (c.estado === 'cabeza') Object.assign(c, { estado: 'suelo', vx: azarEntre(-250, 250), vz: azarEntre(-250, 250), vy: 120 });
+        Object.assign(j, { fase: 'mirar', t: 0 });
+        mente.meta = null; mente.ruta = [];
+        mente.mirarA = c;
+        mente.aviso = 'ups'; mente.tAviso = 1.4;
+        mente.tAccion = 1.6;
+      }
+      if (j.tipo === 'malabares' && j.fase === 'malabar') malabares(j);
+    }
+
+    // ---- Malabares (va mejorando con la práctica) ----
+    function lanzarMalabar(c, desde, hacia, T, alto) {
+      const prob = Math.min(0.97, 0.55 + 0.06 * mente.nivelMalabar);
+      c.estado = 'vuelo'; c.paso = true;
+      c.vueloMalabar = { desde: manos[desde].slice(), sy: c.y, hacia, t0: reloj, T, alto, agarra: Math.random() < prob };
+      mente.juego.lanzo = { lado: desde, t: reloj };
+      mente.juego.lanzados++;
+    }
+    function malabares(j) {
+      const enAire = j.cubos.filter(c => c.vueloMalabar);
+      const enMano = j.cubos.filter(c => c.estado === 'mano');
+      mente.mirarA = enAire[0] || enMano[0];
+      // se le cayó uno
+      if (j.cubos.some(c => c.estado !== 'mano' && !c.vueloMalabar)) {
+        terminarMalabares(j, false);
+        return;
+      }
+      if (j.lanzados >= j.meta && !enAire.length) { terminarMalabares(j, true); return; }
+      if (j.lanzados >= j.meta) return;
+      if (j.patron === 'dos') {
+        // cuando un cubo va llegando a una mano ocupada, esa mano lanza el suyo a la otra
+        for (const c of enAire) {
+          const f = c.vueloMalabar;
+          if (!f.relevo && (reloj - f.t0) / f.T > 0.55) {
+            f.relevo = true;
+            const otro = enMano.find(x => x.mano === f.hacia);
+            if (otro) lanzarMalabar(otro, otro.mano, -otro.mano, 0.75, 150);
+          }
+        }
+        if (!enAire.length && j.t <= 0) { const c = enMano.find(x => x.mano === 1) || enMano[0]; lanzarMalabar(c, c.mano, -c.mano, 0.75, 150); }
+      } else if (!enAire.length && j.t <= 0) {
+        const c = enMano[0];
+        const hacia = j.patron === 'arriba' ? c.mano : -c.mano;
+        lanzarMalabar(c, c.mano, hacia, 0.65, j.patron === 'arriba' ? 160 : 110);
+        j.t = 0.65 + 0.2;
+      }
+    }
+    function terminarMalabares(j, bien) {
+      for (const c of j.cubos) if (c.estado === 'mano') c.estado = 'suelo';
+      mente.nivelMalabar = Math.min(10, mente.nivelMalabar + (bien ? 1 : 0.5));   // aprende igual, aunque falle
+      Object.assign(j, { fase: 'mirar', t: 0 });
+      mente.aviso = bien ? `¡${j.lanzados} seguidos!` : 'ups'; mente.tAviso = 1.6;
+      mente.tAccion = 1.4;
+      if (bien) mente.despues = 'celebrar';
+    }
+
     // Tocar una tecla le quita la vida propia (hasta que lo dejes de nuevo)
+    function soltarCubo() {
+      for (const c of CUBOS) {
+        if (c.estado === 'mano' || c.estado === 'cabeza') { c.estado = 'suelo'; c.vy = 0; }
+        if (c.vueloMalabar) { c.vueloMalabar = null; c.vy = 0; }
+      }
+      mente.juego = null;
+    }
     function tomarControl() {
       ultimaOrden = reloj;
-      if (mente.accion !== 'jugador') {
-        Object.assign(mente, { accion: 'jugador', meta: null, mirarA: null, giroForzado: null, saltosPend: 0 });
+      soltarCubo();
+      if (mente.acostado > 0.05 || mente.accion === 'durmiendo' || mente.accion === 'acostarse') mente.accion = 'levantarse';
+      if (mente.tirado > 0) { mente.accion = 'pararse'; ultimaOrden = reloj; return; }
+      if (mente.accion !== 'jugador' && mente.accion !== 'levantarse') {
+        Object.assign(mente, { accion: 'jugador', meta: null, ruta: [], mirarA: null, giroForzado: null, saltosPend: 0 });
       }
     }
 
     function brincar() {
-      if (altura !== 0) return;
+      if (altura !== 0 || mente.acostado > 0.01 || mente.tirado > 0.01) return;
       velY = FUERZA_SALTO * (mente.cansado > 0 ? 0.5 : 1);
       // muchos saltos seguidos lo cansan
       mente.saltos = mente.saltos.filter(t => reloj - t < 4);
@@ -693,7 +1017,60 @@
     document.addEventListener('keyup', e => teclas.delete(e.code));
     window.addEventListener('blur', () => teclas.clear());
 
+    // Acostarse y levantarse de la cama: se interpola entre estar de pie al lado y acostado encima
+    const LADO_CAMA = [1420, 0, -250];
+    const suave = t => t * t * (3 - 2 * t);
+    function enLaCama(dt) {
+      const quiere = mente.accion === 'acostarse' || mente.accion === 'durmiendo' ? 1 : 0;
+      if (mente.accion === 'acostarse' && mente.acostado >= 1) mente.accion = 'durmiendo';
+      const antes = mente.acostado;
+      mente.acostado = limitar(mente.acostado + (quiere ? 1 : -1) * dt / 1.3, [0, 1]);
+      if (mente.acostado === 0 && antes === 0) return false;
+      const k = suave(mente.acostado);
+      pos.x = LADO_CAMA[0] + (ACOSTADO.x - LADO_CAMA[0]) * k;
+      pos.z = LADO_CAMA[2] + (ACOSTADO.z - LADO_CAMA[2]) * k;
+      altura = ACOSTADO.altura * k + Math.sin(Math.PI * mente.acostado) * 70;
+      velY = 0; vel.x = vel.z = 0; fuerzaPaso = 0; desplazPaso = 0;
+      let dif = -Math.PI / 2 - orientacion;
+      dif = Math.atan2(Math.sin(dif), Math.cos(dif));
+      orientacion += dif * (1 - Math.exp(-8 * dt));
+      if (mente.acostado === 0) {   // terminó de levantarse
+        altura = 0;
+        if (mente.accion === 'levantarse') mente.accion = reloj - ultimaOrden < QUIETO_PARA_VIVIR ? 'jugador' : 'quieto';
+        mente.tAccion = 0.5;
+      }
+      if (mente.accion === 'durmiendo') { mente.tAccion -= dt; if (mente.tAccion <= 0) mente.accion = 'levantarse'; }
+      camPos.x = suavizar(camPos.x, pos.x, SUAVIDAD_SEGUIR, dt);
+      camPos.z = suavizar(camPos.z, pos.z, SUAVIDAD_SEGUIR, dt);
+      return true;
+    }
+
+    // Tirado de espaldas en el piso
+    function enElPiso(dt) {
+      const quiere = mente.accion === 'tirado';
+      const antes = mente.tirado;
+      mente.tirado = limitar(mente.tirado + (quiere ? 1 : -1) * dt / 0.55, [0, 1]);
+      if (mente.tirado === 0 && antes === 0) return false;
+      altura = 70 * suave(mente.tirado) + Math.sin(Math.PI * mente.tirado) * 25;
+      velY = 0; vel.x = vel.z = 0; fuerzaPaso = 0; desplazPaso = 0;
+      if (mente.accion === 'tirado') { mente.tAccion -= dt; if (mente.tAccion <= 0) mente.accion = 'pararse'; }
+      if (mente.tirado === 0) {
+        altura = 0;
+        mente.accion = reloj - ultimaOrden < QUIETO_PARA_VIVIR ? 'jugador' : 'quieto';
+        mente.tAccion = 0.4;
+      }
+      return true;
+    }
+
     function mover(dt) {
+      if (enElPiso(dt)) {
+        if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].some(k => teclas.has(k))) tomarControl();
+        return;
+      }
+      if (enLaCama(dt)) {
+        if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].some(k => teclas.has(k))) tomarControl();
+        return;
+      }
       let adelante = 0, derecha = 0;
       if (teclas.has('KeyW')) adelante += 1;
       if (teclas.has('KeyS')) adelante -= 1;
@@ -717,15 +1094,6 @@
         const g = actual.giro * Math.PI / 180;
         metaX = (Math.sin(g) * adelante + Math.cos(g) * derecha) * VELOCIDAD * lento;
         metaZ = (-Math.cos(g) * adelante + Math.sin(g) * derecha) * VELOCIDAD * lento;
-        // empujarlo contra una pared: se aburre de chocar y se da vuelta
-        const enX = Math.abs(pos.x) >= BORDE - 1 && Math.sign(metaX) === Math.sign(pos.x) && Math.abs(metaX) > 60;
-        const enZ = Math.abs(pos.z) >= BORDE - 1 && Math.sign(metaZ) === Math.sign(pos.z) && Math.abs(metaZ) > 60;
-        mente.tPared = enX || enZ ? mente.tPared + dt : 0;
-        if (mente.tPared > 0.45) {
-          const hx = enX ? -Math.sign(pos.x) : 0, hz = enZ ? -Math.sign(pos.z) : 0, l = Math.hypot(hx, hz);
-          Object.assign(mente, { tPared: 0, bloqueo: 0.9, huida: [hx / l, hz / l], giroForzado: Math.atan2(hx, hz) });
-          if (altura === 0) velY = FUERZA_SALTO * 0.35;
-        }
       } else if (reloj - ultimaOrden > QUIETO_PARA_VIVIR) {
         if (mente.accion === 'jugador') nuevaAccion();
         const { dir, rapido } = pensar(dt);
@@ -747,9 +1115,24 @@
         orientacion += dif * (1 - Math.exp(-GIRO_CUERPO * 0.6 * dt));
       }
 
+      // Avanza solo hacia donde hay espacio libre (si choca, se desliza por la pared)
       const antesX = pos.x, antesZ = pos.z;
-      pos.x = limitar(pos.x + vel.x * dt, [-BORDE, BORDE]);
-      pos.z = limitar(pos.z + vel.z * dt, [-BORDE, BORDE]);
+      const nx = pos.x + (vel.x + golpe.empuje[0]) * dt, nz = pos.z + (vel.z + golpe.empuje[1]) * dt;
+      if (libre(nx, nz)) { pos.x = nx; pos.z = nz; }
+      else if (libre(nx, pos.z)) pos.x = nx;
+      else if (libre(pos.x, nz)) pos.z = nz;
+
+      // Empujarlo contra una pared: se aburre de chocar y se da vuelta
+      const quiere = Math.hypot(metaX, metaZ);
+      const avanzo = Math.hypot(pos.x - antesX, pos.z - antesZ) / dt;
+      mente.tPared = manda && mente.bloqueo <= 0 && quiere > 60 && avanzo < quiere * 0.25 ? mente.tPared + dt : 0;
+      if (mente.tPared > 0.45) {
+        const hx = -metaX / quiere, hz = -metaZ / quiere;
+        Object.assign(mente, { tPared: 0, bloqueo: 0.9, huida: [hx, hz], giroForzado: Math.atan2(hx, hz) });
+        if (altura === 0) velY = FUERZA_SALTO * 0.35;
+      }
+      const frena = Math.exp(-6 * dt);
+      golpe.empuje = [golpe.empuje[0] * frena, golpe.empuje[1] * frena];
       if (altura === 0) fasePaso += Math.hypot(pos.x - antesX, pos.z - antesZ) * RITMO_PASO;
       fuerzaPaso = suavizar(fuerzaPaso, rapidez > 30 && altura === 0 ? 1 : 0, 10, dt);
       desplazPaso = Math.sin(fasePaso) * PASO_MAX * fuerzaPaso;
@@ -768,7 +1151,50 @@
       mente.tParpadeo -= dt;
       if (mente.tParpadeo <= 0) { mente.parpadeando = 0.15; mente.tParpadeo = azarEntre(2, 5.5); }
       mente.parpadeando = Math.max(0, mente.parpadeando - dt);
-      const texto = mente.cansado > 0 ? 'cansado' : mente.susto > 0.5 ? 'sorprendido' : mente.animo;
+      mente.molesto = Math.max(0, mente.molesto - dt);
+      mente.dedo = Math.max(0, mente.dedo - dt);
+      mente.tAviso = Math.max(0, mente.tAviso - dt);
+      // ¿entró el cubo?
+      if (mente.tiro && reloj >= mente.tiro.t) {
+        const entro = mente.tiro.cubo.acierta;
+        mente.aviso = entro ? '¡encesté!' : 'casi...';
+        mente.tAviso = 1.8;
+        mente.tiro = null;
+        if (entro) {
+          mente.fallos = 0;
+          if (mente.accion !== 'jugador') { soltarCubo(); celebrar(); }
+        } else if (mente.fallos + 1 < 5 && mente.accion === 'encestar' && mente.juego) {
+          // falló: si le quedan cubos en la mano tira otro; si no, va a buscar más
+          mente.fallos++;
+          const j = mente.juego;
+          if (j.carga && j.carga.length) {
+            Object.assign(j, { fase: 'apuntar', t: 0.8, cubo: j.carga[j.carga.length - 1] });
+            mente.mirarA = [ARO.x, -ARO.alto, ARO.z];
+            mente.tAccion = 6;
+          } else {
+            mente.despues = 'encestar';
+            mente.tAccion = Math.min(mente.tAccion, 1.1);
+          }
+        } else if (++mente.fallos >= 5) {
+          soltarCubo();
+          // erró muchos seguidos: se enoja y hace una pataleta
+          Object.assign(mente, { fallos: 0, molesto: 6, molestoPor: 'tiros', aviso: '¡uf!' });
+          if (mente.accion !== 'jugador')
+            Object.assign(mente, { accion: 'pataleta', tAccion: 2.2, tSalto: 0, juego: null, meta: null, mirarA: null });
+        }
+      }
+
+      // el tambaleo vuelve a su lugar como un resorte
+      const resorte = (x, v, k, amort) => { v += (-k * x - amort * v) * dt; return [x + v * dt, v]; };
+      [golpe.tx, golpe.vx] = resorte(golpe.tx, golpe.vx, 120, 4.5);
+      [golpe.tz, golpe.vz] = resorte(golpe.tz, golpe.vz, 120, 4.5);
+      [golpe.cab, golpe.vCab] = resorte(golpe.cab, golpe.vCab, 160, 5);
+      golpe.t = Math.max(0, golpe.t - dt);
+
+      const texto = golpe.t > 0.2 ? '¡ay!' : mente.tAviso > 0 ? mente.aviso : mente.molesto > 0 ? 'molesto'
+                  : mente.accion === 'durmiendo' ? 'durmiendo' : mente.accion === 'tirado' ? 'sin saber qué hacer'
+                  : mente.cansado > 0 ? 'cansado'
+                  : mente.susto > 0.5 ? 'sorprendido' : mente.animo;
       if (etiquetaAnimo.textContent !== texto) etiquetaAnimo.textContent = texto;
     }
 
@@ -781,10 +1207,237 @@
     }
 
     function saltar(dt) {
+      if (mente.acostado > 0 || mente.tirado > 0) return;
       if (altura === 0 && velY === 0) return;
       velY -= GRAVEDAD * dt;
       altura += velY * dt;
       if (altura <= 0) { altura = 0; velY = 0; }
+    }
+
+
+    // =====================================================================
+    //  LOS OBJETOS DE LA CASA: puerta, cama, aro y cubos
+    //  Se dibujan en el canvas junto al personaje, así se tapan bien entre ellos.
+    // =====================================================================
+    const MADERA = '#a0714a', MADERA_OSCURA = '#7a5235';
+
+    // Muebles quietos: { caras, cuarto }  (cuarto: en qué habitación están; null = en la pared)
+    const MUEBLES = [];
+    const mueble = (cuarto, ...cajas) => MUEBLES.push({ cuarto, caras: cajas.flat() });
+
+    // Marco de la puerta: se ve de los dos lados
+    const MARCO = 16, GROSOR_MURO = 34;
+    mueble(null,
+      caja(PUERTA.x - GROSOR_MURO / 2, PUERTA.x + GROSOR_MURO / 2, 0, PUERTA.alto + MARCO, PUERTA.z0 - MARCO, PUERTA.z0, MADERA_OSCURA),
+      caja(PUERTA.x - GROSOR_MURO / 2, PUERTA.x + GROSOR_MURO / 2, 0, PUERTA.alto + MARCO, PUERTA.z1, PUERTA.z1 + MARCO, MADERA_OSCURA),
+      caja(PUERTA.x - GROSOR_MURO / 2, PUERTA.x + GROSOR_MURO / 2, PUERTA.alto, PUERTA.alto + MARCO, PUERTA.z0, PUERTA.z1, MADERA_OSCURA));
+
+    // Cama (habitación 2): cabecera contra la pared del fondo a la derecha
+    const CAMA = { x0: 1250, x1: 1696, z0: -690, z1: -380, colchon: 85 };
+    mueble(1,
+      caja(1262, 1680, 0, 45, -680, -390, MADERA),                 // base
+      caja(1270, 1676, 45, CAMA.colchon, -672, -398, '#f1eee6'),   // colchón
+      caja(1272, 1500, 47, 93, -676, -394, '#5f86c2'),             // frazada
+      caja(1585, 1664, CAMA.colchon, 104, -640, -430, '#fbfaf6'),  // almohada
+      caja(1676, 1696, 0, 200, -690, -380, MADERA_OSCURA),         // cabecera
+      caja(1250, 1264, 0, 115, -690, -380, MADERA_OSCURA));        // pie de la cama
+    const OBSTACULOS = [[CAMA.x0 - 90, CAMA.x1, CAMA.z0 - 20, CAMA.z1 + 90]];   // por donde no puede caminar
+    const ACOSTADO = { x: CAMA.x0 + 22, z: (CAMA.z0 + CAMA.z1) / 2, altura: CAMA.colchon + 70 };   // cómo queda en la cama
+
+    // Aro (habitación principal), en la pared del fondo. Hueco cuadrado de 100 (los cubos miden 50)
+    const ARO = { x: -250, alto: 430, z: -625, hueco: 100, barra: 9 };
+    const PUNTO_TIRO = [ARO.x, 0, ARO.z + 300];   // desde dónde lanza
+    {
+      const h = ARO.hueco / 2, b = ARO.barra, y0 = ARO.alto - b, y1 = ARO.alto, NAR = '#e0662b';
+      mueble(0,
+        caja(ARO.x - 125, ARO.x + 125, 370, 570, -700, -686, '#f6f3ec'),   // tablero
+        caja(ARO.x - 55, ARO.x + 55, 432, 522, -686, -684, '#d0533f'),     // cuadro rojo
+        caja(ARO.x - 46, ARO.x + 46, 441, 513, -684, -683, '#f6f3ec'),
+        caja(ARO.x - h - b, ARO.x + h + b, y0, y1, ARO.z + h, ARO.z + h + b, NAR),     // aro: adelante
+        caja(ARO.x - h - b, ARO.x + h + b, y0, y1, ARO.z - h - b, ARO.z - h, NAR),     //      atrás
+        caja(ARO.x - h - b, ARO.x - h, y0, y1, ARO.z - h, ARO.z + h, NAR),             //      lados
+        caja(ARO.x + h, ARO.x + h + b, y0, y1, ARO.z - h, ARO.z + h, NAR));
+    }
+
+    // Cubos de colores, apilados en una esquina
+    const LADO_CUBO = 50, GRAVEDAD_CUBO = 1800;
+    const CUBOS_INICIO = [
+      ['#e5533d', -640, 0, -640], ['#f2b33d', -585, 0, -640], ['#4f8fd8', -640, 0, -585],
+      ['#5dbb6a', -585, 0, -585], ['#9b6bd3', -612, 50, -612], ['#f08a3c', -520, 0, -640],
+    ];
+    const COLORES_CUBO = ['#e5533d', '#f2b33d', '#4f8fd8', '#5dbb6a', '#9b6bd3', '#f08a3c', '#e86fa8', '#41b8b0'];
+    const MAX_CUBOS = 30;
+    const nuevoCubo = (color, x, y, z, giro = 0) => ({ color, x, y, z, vx: 0, vy: 0, vz: 0, giro, vuelta: 0, estado: 'suelo' });
+    const CUBOS = CUBOS_INICIO.map(a => nuevoCubo(...a));
+
+    // ---- Los botones de la pared, junto a los cubos ----
+    // rojo: caen más cubos del techo en esa esquina · azul: deja solo los cubos del principio
+    const BOTONES = [
+      { tipo: 'mas', z: -420, color: '#e04a3a', hundido: 0 },
+      { tipo: 'reiniciar', z: -300, color: '#3f7fe0', hundido: 0 },
+    ];
+    function carasBoton(b) {
+      const x = CUARTOS[0].x0;
+      return [...caja(x, x + 8, 100, 180, b.z - 36, b.z + 36, '#ece6da'),
+              ...caja(x + 8, x + 8 + 14 * (1 - 0.7 * b.hundido), 122, 158, b.z - 20, b.z + 20, b.color)];
+    }
+    function presionar(b) {
+      b.hundido = 1;
+      if (b.tipo === 'mas') {
+        for (let i = 0; i < 5 && CUBOS.length < MAX_CUBOS; i++)
+          CUBOS.push(nuevoCubo(COLORES_CUBO[Math.floor(Math.random() * COLORES_CUBO.length)],
+                               azarEntre(-660, -470), azarEntre(560, 720) + i * 60, azarEntre(-660, -470), azarEntre(0, 90)));
+      } else {
+        if (mente.juego) { soltarCubo(); mente.tAccion = 0; }
+        CUBOS.length = 0;
+        CUBOS.push(...CUBOS_INICIO.map(a => nuevoCubo(...a)));
+      }
+    }
+
+    // La puerta: gira en una bisagra en z0 y se abre hacia el lado contrario de donde viene él
+    const puerta = { ang: 0, v: 0, lado: 1, cerca: false };
+    const ANCHO_PUERTA = PUERTA.z1 - PUERTA.z0;
+    function moverPuerta(dt) {
+      puerta.cerca = Math.abs(pos.x - PUERTA.x) < 290 && Math.abs(pos.z - (PUERTA.z0 + PUERTA.z1) / 2) < 260;
+      if (puerta.ang < 3 && puerta.cerca) puerta.lado = pos.x < PUERTA.x ? 1 : -1;
+      const meta = puerta.cerca ? 88 : 0;
+      puerta.v += (60 * (meta - puerta.ang) - 11 * puerta.v) * dt;
+      puerta.ang = limitar(puerta.ang + puerta.v * dt, [0, 92]);
+    }
+    const puertaAbierta = () => puerta.ang > 60;
+    function carasPuerta() {
+      const m = new DOMMatrix().translate(PUERTA.x, 0, PUERTA.z0).rotate(0, puerta.ang * puerta.lado, 0);
+      const caras = [
+        ...caja(-6, 6, 0, PUERTA.alto - 4, 2, ANCHO_PUERTA - 2, '#b4865c'),
+        ...caja(6, 16, 200, 214, ANCHO_PUERTA - 45, ANCHO_PUERTA - 30, '#d9b45a'),    // manillas
+        ...caja(-16, -6, 200, 214, ANCHO_PUERTA - 45, ANCHO_PUERTA - 30, '#d9b45a'),
+      ];
+      return { m, caras, cuarto: puerta.ang > 3 ? (puerta.lado > 0 ? 1 : 0) : null };
+    }
+
+    // ---- Física de los cubos ----
+    let manoMundo = null;           // dónde está su mano derecha
+    const manos = { [1]: null, [-1]: null };   // las dos manos (para llevar cubos y hacer malabares)
+    let cabezaMundo = null;         // la punta de su cabeza (para balancear un cubo)
+    function apoyoDe(c) {           // altura sobre la que descansa un cubo (el piso u otro cubo)
+      let base = 0, sx = 0, sz = 0, n = 0;
+      for (const o of CUBOS) {
+        if (o === c || o.estado === 'mano' || o.estado === 'vuelo' || o.estado === 'cabeza') continue;
+        if (Math.abs(o.x - c.x) < LADO_CUBO * 0.8 && Math.abs(o.z - c.z) < LADO_CUBO * 0.8 && o.y + LADO_CUBO <= c.y + 12) {
+          const arriba = o.y + LADO_CUBO;
+          if (arriba > base + 1) { base = arriba; sx = sz = n = 0; }
+          if (arriba > base - 1) { sx += o.x; sz += o.z; n++; }
+        }
+      }
+      // el centro de lo que lo sostiene: si queda muy chueco, se resbala y cae
+      c.soporte = n ? [sx / n, sz / n] : null;
+      return base;
+    }
+    function moverCubos(dt) {
+      const h = LADO_CUBO / 2;
+      for (const b of BOTONES) b.hundido = Math.max(0, b.hundido - dt * 3);
+      for (const c of CUBOS) {
+        if (c.estado === 'mano') {
+          const m = manos[c.mano || 1];
+          if (m) { c.x = m[0]; c.y = -m[1] - h + (c.pila || 0) * LADO_CUBO; c.z = m[2]; }
+          continue;
+        }
+        if (c.vueloMalabar) {
+          // va de una mano a la otra (o a la misma) en un arco
+          const f = c.vueloMalabar, u = (reloj - f.t0) / f.T, E = manos[f.hacia];
+          if (u >= 1) {
+            c.vueloMalabar = null;
+            if (f.agarra) { Object.assign(c, { estado: 'mano', mano: f.hacia, pila: 0 }); continue; }
+            Object.assign(c, { vx: azarEntre(-160, 160), vz: azarEntre(-160, 160), vy: -80 });   // se le cae
+          } else {
+            const ey = -E[1] - h;
+            c.x = f.desde[0] + (E[0] - f.desde[0]) * u;
+            c.z = f.desde[2] + (E[2] - f.desde[2]) * u;
+            c.y = f.sy + (ey - f.sy) * u + 4 * f.alto * u * (1 - u);
+            c.vuelta += 420 * dt;
+            continue;
+          }
+        }
+        if (c.estado === 'cabeza') {
+          if (cabezaMundo) { c.x = cabezaMundo[0]; c.y = -cabezaMundo[1]; c.z = cabezaMundo[2]; c.giro = orientacion * GRADOS; }
+          continue;
+        }
+        if (c.estado === 'vuelo') {
+          c.vy -= GRAVEDAD_CUBO * dt;
+          c.x += c.vx * dt; c.y += c.vy * dt; c.z += c.vz * dt;
+          c.vuelta += 500 * dt;
+          if (!c.paso && reloj >= c.tAro) {
+            c.paso = true;
+            if (c.acierta) { c.x = ARO.x; c.z = ARO.z; c.vx = c.vz = 0; c.vuelta = Math.round(c.vuelta / 90) * 90; }
+            else { c.vx = azarEntre(-220, 220); c.vz = 240; c.vy = 220; }   // rebota en el aro
+          }
+          const base = apoyoDe(c);
+          if (c.y <= base) { c.y = base; c.vy = 0; c.vx *= 0.35; c.vz *= 0.35; c.estado = 'suelo'; }
+        } else {
+          const base = apoyoDe(c);
+          if (c.y > base + 0.5) { c.vy -= GRAVEDAD_CUBO * dt; c.y = Math.max(base, c.y + c.vy * dt); if (c.y === base) c.vy = 0; }
+          else { c.y = base; c.vy = 0; }
+          if (base > 0 && c.soporte) {
+            const dx = c.x - c.soporte[0], dz = c.z - c.soporte[1];
+            if (Math.abs(dx) > 14) c.vx += Math.sign(dx) * 900 * dt;
+            if (Math.abs(dz) > 14) c.vz += Math.sign(dz) * 900 * dt;
+          }
+          c.x += c.vx * dt; c.z += c.vz * dt;
+          const f = Math.exp(-3.5 * dt);
+          c.vx *= f; c.vz *= f;
+          c.vuelta = suavizar(c.vuelta, Math.round(c.vuelta / 90) * 90, 8, dt);
+          // él los patea al caminar
+          if (c.y < 100 && altura < 40 && mente.acostado < 0.05 && mente.tirado < 0.05) {
+            const dx = c.x - pos.x, dz = c.z - pos.z, d = Math.hypot(dx, dz);
+            if (d < 92 && d > 0.01) {
+              const empuja = Math.hypot(vel.x, vel.z) * 1.2 + 60;
+              c.x = pos.x + dx / d * 92; c.z = pos.z + dz / d * 92;
+              c.vx += dx / d * empuja * dt * 8; c.vz += dz / d * empuja * dt * 8;
+              c.giro += (Math.random() - 0.5) * 20;
+            }
+          }
+        }
+        // no atraviesan las paredes
+        const r = CUARTOS[cuartoDe(c.x)];
+        if (c.x < r.x0 + h) { c.x = r.x0 + h; c.vx = Math.abs(c.vx) * 0.4; }
+        if (c.x > r.x1 - h) { c.x = r.x1 - h; c.vx = -Math.abs(c.vx) * 0.4; }
+        if (c.z < r.z0 + h) { c.z = r.z0 + h; c.vz = Math.abs(c.vz) * 0.4; }
+        if (c.z > r.z1 - h) { c.z = r.z1 - h; c.vz = -Math.abs(c.vz) * 0.4; }
+      }
+      // los que están en el mismo nivel no se atraviesan
+      for (let i = 0; i < CUBOS.length; i++) for (let j = i + 1; j < CUBOS.length; j++) {
+        const a = CUBOS[i], b = CUBOS[j];
+        if (a.estado === 'mano' || b.estado === 'mano' || a.estado === 'cabeza' || b.estado === 'cabeza' ||
+            Math.abs(a.y - b.y) > LADO_CUBO * 0.8) continue;
+        const dx = b.x - a.x, dz = b.z - a.z, ox = LADO_CUBO - Math.abs(dx), oz = LADO_CUBO - Math.abs(dz);
+        if (ox > 0 && oz > 0) {
+          if (ox < oz) { const s = Math.sign(dx) || 1; a.x -= s * ox / 2; b.x += s * ox / 2; }
+          else { const s = Math.sign(dz) || 1; a.z -= s * oz / 2; b.z += s * oz / 2; }
+        }
+      }
+    }
+    function carasCubo(c) {
+      const m = new DOMMatrix().translate(c.x, -c.y - LADO_CUBO / 2, c.z).rotate(0, c.giro, 0).rotate(c.vuelta, 0, 0);
+      const h = LADO_CUBO / 2;
+      return { m, caras: caja(-h, h, -h, h, -h, h, c.color) };
+    }
+    // Lanzar un cubo al aro (a veces falla)
+    function lanzar(c) {
+      const t = 0.75, objetivoY = ARO.alto + 40;
+      c.estado = 'vuelo';
+      c.vx = (ARO.x - c.x) / t;
+      c.vz = (ARO.z - c.z) / t;
+      c.vy = (objetivoY - c.y) / t + 0.5 * GRAVEDAD_CUBO * t;
+      c.tAro = reloj + t; c.paso = false; c.acierta = Math.random() < 0.35;
+      mente.tiro = { cubo: c, t: reloj + t + 0.35 };
+    }
+    // Clic sobre un cubo: sale disparado lejos de la cámara
+    function patearCubo(c) {
+      if (c.estado === 'mano') return;
+      const cam = new DOMMatrix(mundo.style.transform).inverse().transformPoint(new DOMPoint(0, 0, PERSPECTIVA));
+      const dx = c.x - cam.x / cam.w, dz = c.z - cam.z / cam.w, d = Math.hypot(dx, dz) || 1;
+      c.estado = 'suelo'; c.vx = dx / d * 520; c.vz = dz / d * 520; c.vy = 420; c.y += 1;
+      c.giro += 40;
     }
 
     // =====================================================================
@@ -824,7 +1477,7 @@
     };
 
     // Lleva las caras de una pieza a su posición actual (y mueve las pupilas)
-    function colocar(caras, m, prio, lista, ojos) {
+    function colocar(caras, m, prio, lista, ojos, parte = 'cuerpo') {
       for (const c of caras) {
         const pts = c.esquinas.map(q => aplicar(m, q));
         const n = girar(m, c.normal);
@@ -837,12 +1490,12 @@
           }
           return { pts: ps.map(q => aplicar(m, q)), grosor: l.grosor };
         }) : null;
-        lista.push({ pts, n, d: punto(n, pts[0]), rgb: c.rgb, bordes: c.bordes.slice(), marcas, prio });
+        lista.push({ pts, n, d: punto(n, pts[0]), rgb: c.rgb, bordes: c.bordes.slice(), marcas, prio, parte, trazo: c.trazo });
       }
     }
 
     // Brazo con su ángulo actual: "adelante" lo balancea, "abre" lo levanta hacia el lado
-    function brazoVivo(lado, adelante, abre, mCuerpo, lista) {
+    function brazoVivo(lado, adelante, abre, mCuerpo, lista, dedo) {
       const g = LATERAL_GROSOR / 2;
       const m = new DOMMatrix()
         .translate(lado * LATERAL_ORIGEN_X, -LATERAL_ORIGEN_Y, 0)
@@ -854,7 +1507,17 @@
         if (pts.length < 3) continue;
         caras.push({ esquinas: pts, normal: girar(m, c.normal), rgb: c.rgb, bordes: pts.map(() => false) });
       }
-      colocar(caras, mCuerpo, 1, lista);
+      // el dedo del medio, saliendo de la punta del brazo
+      // (sale derecho hacia arriba desde la mano)
+      if (dedo) {
+        const [tx, ty, tz] = aplicar(m, [0, LATERAL_LARGO - 10, 0]);
+        const h = -ty;
+        const mano = [...caja(tx - 24, tx + 24, h - 20, h + 20, tz - 4, tz + 34, BLANCO),    // puño
+                      ...caja(tx - 12, tx + 12, h + 20, h + 78, tz + 5, tz + 27, BLANCO)];   // dedo
+        caras.push(...mano);
+      }
+      colocar(caras, mCuerpo, 1, lista, null, 'brazo');
+      return m;
     }
 
     function partir(p, n, d) {
@@ -921,17 +1584,21 @@
     }
 
     // ---- Iluminación del cuarto ----
-    const LUZ_POS = [0, -(ALTO_CUARTO - 40), 0];       // la lámpara, en el centro del techo
     const LUZ_COLOR = [1.0, 0.86, 0.66];               // cálida
     const AMBIENTE_COLOR = [0.93, 0.90, 0.92];         // luz de rebote
     const AMBIENTE = 0.84, DIRECTA = 0.6, ALCANCE = 900;
     function iluminar(rgb, n, p) {
-      const l = [LUZ_POS[0] - p[0], LUZ_POS[1] - p[1], LUZ_POS[2] - p[2]];
-      const d = Math.hypot(...l);
-      const llega = Math.max(0, (n[0] * l[0] + n[1] * l[1] + n[2] * l[2]) / d);   // qué tanto mira a la luz
-      const apaga = 1 / (1 + (d / ALCANCE) ** 2);                                 // más lejos, menos luz
-      const brillo = AMBIENTE + DIRECTA * llega * apaga * 1.6;
-      const c = rgb.map((v, i) => Math.min(255, v * (AMBIENTE * AMBIENTE_COLOR[i] + DIRECTA * llega * apaga * 1.6 * LUZ_COLOR[i])) | 0);
+      // suma la luz de la lámpara de cada habitación
+      let directa = 0;
+      for (const c of CUARTOS) {
+        const l = [c.luz[0] - p[0], c.luz[1] - p[1], c.luz[2] - p[2]];
+        const d = Math.hypot(...l);
+        const llega = Math.max(0, (n[0] * l[0] + n[1] * l[1] + n[2] * l[2]) / d);   // qué tanto mira a la luz
+        const apaga = 1 / (1 + (d / ALCANCE) ** 2);                                 // más lejos, menos luz
+        directa += DIRECTA * llega * apaga * 1.6;
+      }
+      const brillo = AMBIENTE + directa;
+      const c = rgb.map((v, i) => Math.min(255, v * (AMBIENTE * AMBIENTE_COLOR[i] + directa * LUZ_COLOR[i])) | 0);
       return { brillo, css: `rgb(${c[0]},${c[1]},${c[2]})` };
     }
 
@@ -954,8 +1621,10 @@
       if (mente.accion === 'jugador' && rapidez < 0.1 && reloj - ultimaOrden > 1.5) mirarA = 'camara';
       if (mente.susto > 0.5) mirarA = 'camara';
       const blanco = mirarA === 'camara' ? ojo
-                   : mirarA === 'lampara' ? aLocal(LUZ_POS)
-                   : Array.isArray(mirarA) ? aLocal(mirarA) : null;
+                   : mirarA === 'lampara' ? aLocal(CUARTOS[cuartoDe(pos.x)].luz)
+                   : Array.isArray(mirarA) ? aLocal(mirarA)
+                   : mirarA && mirarA.color ? aLocal([mirarA.x, -mirarA.y - LADO_CUBO / 2, mirarA.z]) : null;
+      const dormido = mente.acostado > 0.5;
 
       let metaGiro, metaInclina, metaLadeo = 0, quiereGiro = 0, quiereInclina = 0;
       if (blanco) {
@@ -965,7 +1634,8 @@
         metaGiro = limitar(quiereGiro, [-55, 55]);
         metaInclina = limitar(quiereInclina, [-20, 28]);
         // si queda muy atrás, gira todo el cuerpo
-        if (Math.abs(quiereGiro) > 70 && mente.accion !== 'jugador' && mente.accion !== 'sentado' && rapidez < 0.2)
+        if (Math.abs(quiereGiro) > (mente.dedo > 0 ? 8 : 70) && mente.accion !== 'jugador' && mente.accion !== 'sentado'
+            && rapidez < 0.2 && mente.acostado === 0)
           mente.giroForzado = orientacion + quiereGiro / GRADOS;
         if (mente.animo === 'curioso') metaLadeo += Math.sin(reloj * 0.9) * 7;   // ladea la cabeza, curioso
       } else {
@@ -980,15 +1650,22 @@
       if (cansado) { metaInclina -= 12; metaLadeo += 7; }
       if (mente.accion === 'saludar') metaLadeo += 9;
       metaInclina += mente.susto * 6;
+      if (mente.molesto > 0) metaInclina -= 6;
+      if (mente.dedo > 0) metaLadeo -= 8;
+      if (mente.accion === 'pataleta') { metaInclina = -14; metaGiro = Math.sin(reloj * 12) * 15; }
+      if (dormido) { metaGiro = Math.sin(reloj * 0.3) * 6; metaInclina = 0; metaLadeo = 8; }
+      if (mente.tirado > 0.5) { metaGiro = Math.sin(reloj * 0.4) * 20; metaInclina = 0; metaLadeo = 0; }
 
       cabeza.giro    = suavizar(cabeza.giro, metaGiro, 6, dt);
       cabeza.inclina = suavizar(cabeza.inclina, metaInclina, 6, dt);
       cabeza.ladeo   = suavizar(cabeza.ladeo, metaLadeo, 5, dt);
+      const cabGiro = cabeza.giro, cabInclina = cabeza.inclina + golpe.cab, cabLadeo = cabeza.ladeo + golpe.cab * 0.6 * golpe.lado;
 
       // Pupilas: siguen lo que mira, y parpadea
       pupila.x = suavizar(pupila.x, limitar((quiereGiro - cabeza.giro) / 25, [-1, 1]) * 8, 12, dt);
       pupila.y = suavizar(pupila.y, -limitar((quiereInclina - cabeza.inclina) / 25, [-1, 1]) * 6, 12, dt);
-      const abiertos = mente.parpadeando > 0 ? 0.12 : cansado ? 0.6 : 1;
+      const abiertos = mente.parpadeando > 0 || golpe.t > 0.3 || (dormido && mente.accion === 'durmiendo') ? 0.12
+                     : cansado || mente.molesto > 0 ? 0.6 : 1;
 
       // Respiración y pasos
       const ritmo = cansado ? 4.4 : mente.animo === 'aburrido' ? 1.4 : 2.1;
@@ -1004,7 +1681,40 @@
       for (const lado of [-1, 1]) {
         let adelante = lado * balanceo + mente.sentado * 25 + (cansado ? 6 : 0);
         let abre = resp * 2.5 + enElAire * 40 + mente.susto * 30 - (cansado ? 10 : 0) - mente.sentado * 12;
+        const sacude = golpe.t / 0.7;   // agita los brazos cuando le pegas
+        abre += sacude * 45 + Math.sin(reloj * 24 + lado) * 18 * sacude;
+        adelante += Math.sin(reloj * 19 + lado * 2) * 20 * sacude;
         if (mente.accion === 'saludar' && lado === 1) { abre = 70 + Math.sin(reloj * 11) * 25; adelante = -10; }
+        // dormido: los brazos pegados al cuerpo
+        if (dormido) { abre = -18 + resp * 2; adelante = 0; }
+        // con un cubo en la mano, apuntando y lanzando
+        const j = mente.juego;
+        if (j && lado === 1 && (j.fase === 'llevar' || j.fase === 'apuntar')) {
+          adelante = j.fase === 'apuntar' ? 40 - (0.9 - j.t) * 110 : 55;
+          abre = j.fase === 'apuntar' ? 15 : 0;
+        }
+        if (j && lado === 1 && j.fase === 'mirar' && j.t > 0 && j.tipo === 'encestar') { adelante = 140; abre = 10; }
+        if (j && lado === 1 && j.fase === 'poner') { adelante = 100; abre = 25; }
+        if (j && lado === 1 && j.fase === 'apuntarNada') { adelante = -30 + (0.6 - j.t) * 60; abre = 20; }
+        if (j && lado === 1 && j.tipo === 'lanzar' && j.fase === 'mirar' && j.t > 0) { adelante = 130; abre = 10; }
+        if (j && j.fase === 'equilibrio') { abre = 55 + Math.sin(reloj * 3 + lado) * 10; adelante = 0; }   // brazos abiertos, equilibrio
+        // tirado en el piso: brazos y piernas abiertos
+        if (mente.tirado > 0.5) { abre = 70 + Math.sin(reloj * 0.8 + lado) * 6; adelante = 0; }
+        if (j && lado === 1 && j.fase === 'apretar') { adelante = 88; abre = 0; }
+        if (j && j.tipo === 'malabares' && j.fase === 'malabar') {
+          const empuja = j.lanzo && j.lanzo.lado === lado ? Math.max(0, 1 - (reloj - j.lanzo.t) / 0.18) : 0;
+          adelante = 58 + empuja * 35; abre = -4;
+        }
+        // celebrando: los brazos arriba y moviéndose
+        if (mente.accion === 'celebrar') { abre = 80 + Math.sin(reloj * 14 + lado) * 25; adelante = 0; }
+        // pataleta: brazos tiesos hacia atrás
+        if (mente.accion === 'pataleta') { abre = -12; adelante = -22; }
+        // empuja la puerta al pasar
+        if (puerta.cerca && puerta.ang < 70 && rapidez > 0.15 && lado === 1) {
+          adelante = 80; abre = 0;
+        }
+        // molesto: el dedo del medio a la cámara
+        if (mente.dedo > 0 && lado === 1) { adelante = 90 + Math.sin(reloj * 9) * 4; abre = 0; }
         brazos[lado].adelante = suavizar(brazos[lado].adelante, adelante, 12, dt);
         brazos[lado].abre     = suavizar(brazos[lado].abre, abre, 12, dt);
       }
@@ -1013,20 +1723,24 @@
       const mCuerpo = new DOMMatrix().translate(0, cuerpoY, 0);
       const mCabeza = mCuerpo
         .translate(0, -CUELLO, 0)
-        .rotate(0, cabeza.giro, 0)
-        .rotate(cabeza.inclina, 0, 0)
-        .rotate(0, 0, cabeza.ladeo)
+        .rotate(0, cabGiro, 0)
+        .rotate(cabInclina, 0, 0)
+        .rotate(0, 0, cabLadeo)
         .translate(0, CUELLO, 0);
       const avance = mente.sentado * 20;
+      const jp = mente.juego;
+      const patada = jp && jp.tipo === 'patear' && jp.fase === 'mirar' && jp.t > 0 ? 1 : 0;
       return {
         mCuerpo, mCabeza,
         mPieIzq: new DOMMatrix().translate(0, 0, desplazPaso + avance),
-        mPieDer: new DOMMatrix().translate(0, 0, -desplazPaso + avance),
+        // la patada: el pie derecho sale hacia adelante y arriba
+        mPieDer: new DOMMatrix().translate(0, -patada * 24, -desplazPaso + avance + patada * 48),
         ojos: { x: pupila.x, y: pupila.y, abiertos },
       };
     }
 
     let ojoAnterior = [0, -300, 600];
+    const formas = [];   // las caras tal como quedaron en pantalla (para saber si el mouse lo toca)
 
     function dibujarPersonaje() {
       cctx.clearRect(0, 0, innerWidth, innerHeight);
@@ -1043,16 +1757,39 @@
       const pose = calcularPose(dtActual, enMundo, ojo);
       const lista = [];
       colocar(GRUPOS.cuerpo[0], pose.mCuerpo, 0, lista);
-      for (const caras of GRUPOS.cabeza) colocar(caras, pose.mCabeza, 1, lista, pose.ojos);
-      colocar(GRUPOS.pieIzq[0], pose.mPieIzq, 1, lista);
-      colocar(GRUPOS.pieDer[0], pose.mPieDer, 1, lista);
-      for (const lado of [-1, 1]) brazoVivo(lado, brazos[lado].adelante, brazos[lado].abre, pose.mCuerpo, lista);
+      for (const caras of GRUPOS.cabeza) colocar(caras, pose.mCabeza, 1, lista, pose.ojos, 'cabeza');
+      colocar(GRUPOS.pieIzq[0], pose.mPieIzq, 1, lista, null, 'pie');
+      colocar(GRUPOS.pieDer[0], pose.mPieDer, 1, lista, null, 'pie');
+      for (const lado of [-1, 1]) {
+        const m = brazoVivo(lado, brazos[lado].adelante, brazos[lado].abre, pose.mCuerpo, lista, lado === 1 && mente.dedo > 0);
+        manos[lado] = aplicar(enMundo, aplicar(pose.mCuerpo, aplicar(m, [0, LATERAL_LARGO + 12, 18])));
+        if (lado === 1) manoMundo = manos[1];
+      }
+      cabezaMundo = aplicar(enMundo, aplicar(pose.mCabeza, [0, -ALTO_CABEZA, 8]));
       const pelito = mechon(pelo.curva, pelo.atras)
         .map(p => ({ esquinas: p.pts, normal: p.n, rgb: p.rgb, bordes: p.bordes }));
-      colocar(pelito, pose.mCabeza, 1, lista);
+      colocar(pelito, pose.mCabeza, 1, lista, null, 'cabeza');
 
+      // Los objetos de la casa (están en el mundo: se pasan a las coordenadas del personaje)
+      const alCuerpo = enMundo.inverse();
+      const ponerObjeto = (caras, m, cuarto, parte) => {
+        const desde = lista.length;
+        colocar(caras, m ? alCuerpo.multiply(m) : alCuerpo, 1, lista, null, parte);
+        for (let i = desde; i < lista.length; i++) lista[i].cuarto = cuarto;
+      };
+      for (const mu of MUEBLES) ponerObjeto(mu.caras, null, mu.cuarto, null);
+      // la hoja de la puerta, cerrada, desaparece junto con su pared cuando esa pared se esconde
+      const pu = carasPuerta();
+      const cc = camara.inverse().transformPoint(new DOMPoint(0, 0, PERSPECTIVA));
+      if (!(puerta.ang < 45 && paredOculta[cuartoDe(cc.x / cc.w)])) ponerObjeto(pu.caras, pu.m, pu.cuarto, null);
+      for (const c of CUBOS) { const cu = carasCubo(c); ponerObjeto(cu.caras, cu.m, cuartoDe(c.x), c); }
+      for (const b of BOTONES) ponerObjeto(carasBoton(b), null, 0, b);
+
+      // Solo las caras que miran a la cámara (las de atrás quedan tapadas igual)
+      const visibles = lista.filter(p => punto(p.n, restar(ojo, p.pts[0])) > 0.01);
       const orden = [];
-      recorrer(armarBSP(lista), ojo, orden);
+      recorrer(armarBSP(visibles), ojo, orden);
+      const recortes = recortesDeCuartos(camara, cx, cy);
 
       const c2 = cctx;
       c2.lineJoin = 'round';
@@ -1064,8 +1801,20 @@
         const f = PERSPECTIVA / (PERSPECTIVA - Z);
         return [cx + X * f, cy + Y * f];
       };
-      for (const p of orden) {
+      // Lo que queda detrás de la cámara se recorta antes de proyectar
+      const zCam = ([x, y, z]) => M.m13 * x + M.m23 * y + M.m33 * z + M.m43;
+      formas.length = 0;
+      for (const p0 of orden) {
+        let p = p0;
+        if (p.pts.some(q => zCam(q) > PERSPECTIVA - 12)) {
+          const corte = recortar(p.pts, q => PERSPECTIVA - 12 - zCam(q));
+          if (corte.length < 3) continue;
+          p = { ...p, pts: corte, bordes: corte.map(() => false), marcas: null };
+        }
         const pts = p.pts.map(proyectar);
+        formas.push({ pts, parte: p.parte });
+        const recorte = p.cuarto != null ? recortes[p.cuarto] : null;
+        if (recorte) { c2.save(); c2.clip(recorte, 'evenodd'); }
 
         // Luz de la lámpara: degradado entre la esquina más iluminada y la más oscura
         const n = girar(W, p.n);
@@ -1102,8 +1851,8 @@
             c2.moveTo(a[0], a[1]);
             c2.lineTo(b[0], b[1]);
           }
-          c2.lineWidth = 1;
-          c2.strokeStyle = 'rgba(30, 25, 50, 0.35)';
+          c2.lineWidth = p.trazo ? 2.2 : 1;
+          c2.strokeStyle = p.trazo ? '#1b1820' : 'rgba(30, 25, 50, 0.35)';
           c2.stroke();
         }
 
@@ -1127,6 +1876,7 @@
           }
           c2.restore();
         }
+        if (recorte) c2.restore();
       }
 
       // Contorno negro alrededor de toda la silueta
@@ -1144,6 +1894,112 @@
         ctx.drawImage(negra, Math.cos(a) * g, Math.sin(a) * g);
       }
       ctx.drawImage(capa, 0, 0);
+
+      // Zzz cuando duerme
+      if (mente.accion === 'durmiendo' && mente.acostado > 0.9) {
+        const [hx, hy] = proyectar([0, -(ALTO - 60), 0]);
+        const r = devicePixelRatio || 1;
+        ctx.save();
+        ctx.scale(r, r);
+        ctx.fillStyle = '#5b4e7a';
+        ctx.textAlign = 'center';
+        for (let i = 0; i < 3; i++) {
+          const t = (reloj * 0.5 + i / 3) % 1;
+          ctx.globalAlpha = Math.sin(Math.PI * t);
+          ctx.font = `bold ${14 + t * 14}px system-ui, sans-serif`;
+          ctx.fillText('z', hx + 20 + t * 30 + Math.sin(t * 6) * 6, hy - 30 - t * 60);
+        }
+        ctx.restore();
+      }
+    }
+
+    // Lo que hay en una habitación queda escondido detrás de la pared que las separa
+    // (salvo por el hueco de la puerta) cuando la cámara está del otro lado
+    const PIEZAS_COMPARTIDAS = [[PUERTA.z0 - 550, PUERTA.z0, 0, ALTO_CUARTO], [PUERTA.z1, PUERTA.z1 + 550, 0, ALTO_CUARTO],
+                                [PUERTA.z0, PUERTA.z1, PUERTA.alto, ALTO_CUARTO]];
+    function recortesDeCuartos(camara, cx, cy) {
+      const c = camara.inverse().transformPoint(new DOMPoint(0, 0, PERSPECTIVA));
+      const ladoCam = cuartoDe(c.x / c.w);
+      const salida = [null, null];
+      // ¿está visible la cara de la pared que mira a la cámara?
+      if (paredOculta[ladoCam]) return salida;
+      // si la cámara está dentro de una habitación, de la otra solo se ve lo que asoma por la puerta;
+      // si está afuera, se ve todo menos lo que tapa la pared
+      const cr = CUARTOS[ladoCam], X = c.x / c.w, Z = c.z / c.w, Y = -c.y / c.w;
+      const adentro = X > cr.x0 && X < cr.x1 && Z > cr.z0 && Z < cr.z1 && Y < ALTO_CUARTO;
+      const camino = new Path2D();
+      if (!adentro) camino.rect(-10, -10, innerWidth + 20, innerHeight + 20);
+      for (const [a0, a1, y0, y1] of adentro ? [[PUERTA.z0, PUERTA.z1, 0, PUERTA.alto]] : PIEZAS_COMPARTIDAS) {
+        let q = [[PUERTA.x, -y0, a0], [PUERTA.x, -y0, a1], [PUERTA.x, -y1, a1], [PUERTA.x, -y1, a0]]
+          .map(p => aplicar(camara, p));
+        q = recortar(q, p => PERSPECTIVA - 5 - p[2]);    // lo que queda detrás de la cámara no se proyecta
+        if (q.length < 3) continue;
+        q.forEach(([X, Y, Z], i) => { const f = PERSPECTIVA / (PERSPECTIVA - Z); camino[i ? 'lineTo' : 'moveTo'](cx + X * f, cy + Y * f); });
+        camino.closePath();
+      }
+      salida[1 - ladoCam] = camino;
+      return salida;
+    }
+
+    // ---- Construcción de la casa ----
+    const superficies = [];   // paredes con su plano, para esconder las que tapan al personaje
+    function plano(clase, ancho, alto, transform, normal, punto) {
+      const d = document.createElement('div');
+      d.className = clase;
+      Object.assign(d.style, { width: ancho + 'px', height: alto + 'px', left: -ancho / 2 + 'px', top: -alto / 2 + 'px', transform });
+      mundo.insertBefore(d, jugador);
+      if (normal) superficies.push({ el: d, normal, punto });
+      return d;
+    }
+    // Pared vertical que mira hacia "normal" (hacia adentro de su habitación).
+    // a0..a1 es el tramo a lo largo de la pared; y0..y1 la altura (desde el piso)
+    function pared(clase, eje, fijo, a0, a1, y0, y1, normal) {
+      const ancho = a1 - a0, alto = y1 - y0, centro = (a0 + a1) / 2, yc = -(y0 + y1) / 2;
+      let t, punto;
+      if (eje === 'x') {   // pared a lo largo de x, en z = fijo
+        t = `translate3d(${centro}px, ${yc}px, ${fijo}px) rotateY(${normal > 0 ? 0 : 180}deg)`;
+        punto = [centro, yc, fijo];
+        normal = [0, 0, normal];
+      } else {             // pared a lo largo de z, en x = fijo
+        t = `translate3d(${fijo}px, ${yc}px, ${centro}px) rotateY(${normal > 0 ? 90 : -90}deg)`;
+        punto = [fijo, yc, centro];
+        normal = [normal, 0, 0];
+      }
+      plano(clase, ancho, alto, t, normal, punto);
+    }
+    const H = ALTO_CUARTO;
+    CUARTOS.forEach((c, i) => {
+      const cx = (c.x0 + c.x1) / 2, cz = (c.z0 + c.z1) / 2, an = c.x1 - c.x0, fo = c.z1 - c.z0;
+      const k = (n) => (n + ' ' + c.clase).trim();
+      plano(k('piso'), an, fo, `translate3d(${cx}px, 0, ${cz}px) rotateX(90deg)`);
+      plano(k('techo'), an, fo, `translate3d(${cx}px, ${-H}px, ${cz}px) rotateX(-90deg)`);
+      plano('lampara', 90, 90, `translate3d(${cx}px, ${-H + 1}px, ${cz}px) rotateX(-90deg)`);
+      pared(k('pared'), 'x', c.z0, c.x0, c.x1, 0, H, 1);    // atrás
+      pared(k('pared'), 'x', c.z1, c.x0, c.x1, 0, H, -1);   // adelante
+      // paredes de los costados: la que da a la otra habitación tiene la puerta
+      for (const [x, n] of [[c.x0, 1], [c.x1, -1]]) {
+        if (x === PUERTA.x) {
+          pared(k('pared'), 'z', x, c.z0, PUERTA.z0, 0, H, n);
+          pared(k('pared'), 'z', x, PUERTA.z1, c.z1, 0, H, n);
+          pared(k('pared'), 'z', x, PUERTA.z0, PUERTA.z1, PUERTA.alto, H, n);
+        } else pared(k('pared'), 'z', x, c.z0, c.z1, 0, H, n);
+      }
+    });
+
+    // Esconde las paredes que quedan entre la cámara y el personaje
+    const paredOculta = [false, false];   // la cara de la pared compartida que da a cada habitación
+    function esconderParedes() {
+      paredOculta[0] = paredOculta[1] = false;
+      const c = new DOMMatrix(mundo.style.transform).inverse().transformPoint(new DOMPoint(0, 0, PERSPECTIVA));
+      const cam = [c.x / c.w, c.y / c.w, c.z / c.w];
+      const yo = [pos.x, -200, pos.z];
+      for (const s of superficies) {
+        const delante = punto(s.normal, restar(cam, s.punto)) > 0;
+        const tapa = delante && punto(s.normal, restar(yo, s.punto)) < 0;
+        const v = tapa ? 'hidden' : '';
+        if (tapa && s.punto[0] === PUERTA.x) paredOculta[s.normal[0] < 0 ? 0 : 1] = true;
+        if (s.el.style.visibility !== v) s.el.style.visibility = v;
+      }
     }
 
     let inclinaSusto = [0, 0];
@@ -1153,11 +2009,12 @@
       const ang = mente.susto * 12;
       inclinaSusto = [ojoAnterior[2] / l * ang, -ojoAnterior[0] / l * ang];
       personaje.style.transform =
-        `translateY(${-altura}px) rotateX(${inclinaSusto[0]}deg) rotateZ(${inclinaSusto[1]}deg)`;
+        `translateY(${-altura}px) rotateX(${inclinaSusto[0] + golpe.tx}deg) rotateZ(${inclinaSusto[1] + golpe.tz}deg)` +
+        ` rotateX(${90 * Math.max(suave(limitar((mente.acostado - 0.25) / 0.75, [0, 1])), suave(mente.tirado))}deg)`;
       const lejos = Math.min(altura / 200, 1);
       sombra.style.transform =
         `translateY(-1px) rotateX(90deg) scale(${1.2 - lejos * 0.5})`;
-      sombra.style.opacity = 1 - lejos * 0.6;
+      sombra.style.opacity = mente.acostado > 0 || mente.tirado > 0.3 ? 0 : 1 - lejos * 0.6;
 
       jugador.style.transform =
         `translate3d(${pos.x}px, 0, ${pos.z}px) rotateY(${orientacion}rad)`;
@@ -1166,6 +2023,7 @@
         ` rotateX(${actual.inclinacion}deg)` +
         ` rotateY(${actual.giro}deg)` +
         ` translate3d(${-camPos.x}px, ${ALTO / 2}px, ${-camPos.z}px)`;
+      esconderParedes();
       dibujarPersonaje();
     }
 
@@ -1182,19 +2040,74 @@
       mover(dt);
       saltar(dt);
       moverPelo(dt);
+      moverPuerta(dt);
+      moverCubos(dt);
       dibujar();
       requestAnimationFrame(animar);
     }
 
-    // Arrastrar: mover la cámara alrededor del personaje
+    // ---- Tocarlo con el mouse ----
+    function dentro(x, y, pts) {
+      let si = false;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const [xi, yi] = pts[i], [xj, yj] = pts[j];
+        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) si = !si;
+      }
+      return si;
+    }
+    // ¿Qué parte del personaje hay bajo el mouse? (la de más adelante)
+    function parteBajo(e) {
+      const r = lienzo.getBoundingClientRect();
+      const x = e.clientX - r.left, y = e.clientY - r.top;
+      for (let i = formas.length - 1; i >= 0; i--) if (dentro(x, y, formas[i].pts)) return formas[i].parte;
+      return null;
+    }
+
+    function golpear(parte) {
+      // se lo empuja alejándose de la cámara
+      const l = Math.hypot(ojoAnterior[0], ojoAnterior[2]) || 1;
+      const dx = ojoAnterior[0] / l, dz = ojoAnterior[2] / l;        // hacia la cámara (en el cuerpo)
+      const fuerza = parte === 'cabeza' ? 0.8 : parte === 'pie' ? 0.5 : 1;
+      golpe.vx += dz * 300 * fuerza;
+      golpe.vz += -dx * 300 * fuerza;
+      if (parte === 'cabeza') { golpe.vCab += 420; golpe.lado = Math.random() < 0.5 ? -1 : 1; }
+      else golpe.vCab += 150;
+      const wx = -(dx * Math.cos(orientacion) + dz * Math.sin(orientacion));
+      const wz = -(-dx * Math.sin(orientacion) + dz * Math.cos(orientacion));
+      golpe.empuje = [golpe.empuje[0] + wx * 600 * fuerza, golpe.empuje[1] + wz * 600 * fuerza];
+      if (altura === 0) velY = parte === 'pie' ? 380 : 230;
+      golpe.t = 0.7;
+      mente.parpadeando = 0;
+      // muchos golpes seguidos lo molestan
+      golpe.veces = golpe.veces.filter(t => reloj - t < 4);
+      golpe.veces.push(reloj);
+      if (golpe.veces.length >= 3) { mente.molesto = 7; mente.molestoPor = 'golpes'; mente.dedo = 2.6; golpe.veces = []; }
+      soltarCubo();
+      if (mente.acostado > 0) { mente.accion = 'levantarse'; golpe.empuje = [0, 0]; return; }
+      if (mente.tirado > 0) { mente.accion = 'pararse'; golpe.empuje = [0, 0]; return; }
+      // si estaba en lo suyo, se detiene y te mira
+      if (mente.accion !== 'jugador') {
+        Object.assign(mente, { accion: 'golpeado', meta: null, mirarA: 'camara', giroForzado: null,
+                               saltosPend: 0, tAccion: mente.dedo > 0 ? 2.7 : mente.molesto > 0 ? 0.8 : 1.8 });
+      }
+    }
+
+    // Arrastrar: mover la cámara alrededor del personaje (clic sobre él = golpe)
     let arrastrando = false;
     document.addEventListener('pointerdown', e => {
+      const parte = parteBajo(e);
+      if (parte && parte.tipo) { presionar(parte); return; }
+      if (parte && parte.color) { patearCubo(parte); return; }
+      if (parte) { golpear(parte); return; }
       arrastrando = true;
       document.body.setPointerCapture(e.pointerId);
       document.body.classList.add('arrastrando');
     });
     document.addEventListener('pointermove', e => {
-      if (!arrastrando) return;
+      if (!arrastrando) {
+        document.body.classList.toggle('sobre', !!parteBajo(e));
+        return;
+      }
       objetivo.giro += e.movementX * SENSIBILIDAD;
       objetivo.inclinacion = limitar(
         objetivo.inclinacion - e.movementY * SENSIBILIDAD * 0.8,
