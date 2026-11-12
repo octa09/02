@@ -159,7 +159,7 @@
 
   <canvas id="pelota"></canvas>
 
-  <div class="ayuda">W A S D: mover · Espacio: saltar · Arrastrar o flechas: cámara · Rueda: zoom · Clic en él: un golpecito · Clic en un cubo: patearlo · Botón rojo: más cubos · Botón azul: volver a empezar · Déjalo solo y hace su vida</div>
+  <div class="ayuda">W A S D: mover · Espacio: saltar · Arrastrar o flechas: cámara · Rueda: zoom · Clic en él: un golpecito · Clic en un cubo: patearlo · Botón rojo: más cubos · Botón azul: volver a empezar · Shift: correr · Botón morado: borrar los dibujos · Déjalo solo y hace su vida</div>
   <div class="animo">curioso</div>
 
   <script>
@@ -525,7 +525,8 @@
     const GRAVEDAD        = 1800;
     const PASO_MAX        = 12;
     const RITMO_PASO      = 0.05;
-    const QUIETO_PARA_VIVIR = 4;   // segundos sin tocar nada para que haga su vida
+    const QUIETO_PARA_VIVIR = 4;
+    const RAPIDEZ_CORRER = 1.85;   // cuánto más rápido corre que camina   // segundos sin tocar nada para que haga su vida
 
     const objetivo = { giro: -30, inclinacion: -15, distancia: 660 };
     const actual   = { ...objetivo };
@@ -586,6 +587,10 @@
       fallos: 0,             // tiros al aro errados seguidos
       nivelMalabar: 0,       // va aprendiendo malabares de a poco (sube cada vez que practica)
       despues: null,         // lo que hará al terminar lo que está haciendo
+      gustos: {},            // libre albedrío: le gusta más lo que le sale bien y menos lo que le sale mal
+      recientes: [],         // lo último que hizo (no le gusta repetir tanto)
+      ultimo: null,
+      corre: false,          // si decide ir corriendo
     };
 
     // Golpe con el mouse: el cuerpo se tambalea como un resorte
@@ -601,12 +606,12 @@
     const GANAS = {
       // curioso: sobre todo experimenta con los cubos
       curioso:   { pasear: 1.5, camara: 1.2, mirarPunto: 0.6, brincar: 1, saludar: 1,
-                   encestar: 2, apilar: 1.5, malabares: 1.5, patear: 1, boton: 1, lanzar: 1, cabeza: 1.5, tirarse: 0.2 },
+                   encestar: 2, apilar: 1.5, malabares: 1.5, patear: 1, boton: 1, lanzar: 1, cabeza: 1.5, tirarse: 0.2, pintar: 1.8 },
       // tranquilo: también le gustan los cubos, pero con calma
       tranquilo: { pasear: 1.2, lampara: 1, camara: 0.8, mirarPunto: 1, encestar: 1.5, apilar: 1.5, malabares: 1.5,
-                   cabeza: 1, lanzar: 0.4, dormir: 0.5, tirarse: 0.5 },
+                   cabeza: 1, lanzar: 0.4, dormir: 0.5, tirarse: 0.5, pintar: 2 },
       // aburrido: patea o tira los cubos a cualquier parte, o se tira al piso
-      aburrido:  { sentarse: 1, pasear: 0.6, mirarPunto: 0.6, dormir: 1.5, patear: 2.5, lanzar: 2, tirarse: 1.5 },
+      aburrido:  { sentarse: 1, pasear: 0.6, mirarPunto: 0.6, dormir: 1.5, patear: 2.5, lanzar: 2, tirarse: 1.5, pintar: 0.6 },
     };
     const RITMO_ANIMO = { curioso: 0.75, tranquilo: 0.42, aburrido: 0.3 };
 
@@ -637,9 +642,21 @@
         mente.meta = dentroDelCuarto(CUARTOS[cuartoDe(pos.x)], pos.x + wx * 450, pos.z + wz * 450);
         return;
       }
+      // borrar solo tiene sentido si hay dibujos; borrar todo, si las paredes están llenas
+      const nDibujos = PAREDES_PINTABLES.reduce((n, p) => n + p.dibujos.length, 0);
+      const ganas = { ...GANAS[mente.animo] };
+      if (nDibujos) { ganas.borrar = 0.9; ganas.borrarTodo = nDibujos >= 7 ? 0.7 : 0.04; }
       const a = mente.cansado > 0 && Math.random() < 0.6 ? 'dormir'
               : mente.molesto > 0 && Math.random() < 0.5 ? 'patear'      // enojado por los tiros: patea un cubo
-              : elegir(GANAS[mente.animo]);
+              : elegirLibre(ganas);
+      mente.ultimo = a;
+      mente.recientes = [a, ...mente.recientes].slice(0, 3);
+      // a veces va corriendo, sobre todo si está curioso
+      mente.corre = Math.random() < ({ curioso: 0.35, tranquilo: 0.08, aburrido: 0.12 }[mente.animo] || 0);
+      if (PENSAMIENTOS[a] && Math.random() < 0.6 && mente.tAviso <= 0) {
+        const ops = PENSAMIENTOS[a];
+        mente.aviso = ops[Math.floor(Math.random() * ops.length)]; mente.tAviso = 1.8;
+      }
       Object.assign(mente, { accion: a, meta: null, ruta: [], mirarA: null, giroForzado: null, saltosPend: 0, juego: null });
       const aqui = CUARTOS[cuartoDe(pos.x)];
       switch (a) {
@@ -673,8 +690,14 @@
           mente.juego = { tipo: 'apilar', lugar: [azarEntre(-300, 250), 0, azarEntre(-150, 300)], alto: 3 + Math.floor(Math.random() * 2), torre: [] };
           empezarJuego('apilar');
           break;
-        case 'encestar': case 'malabares': case 'patear': case 'boton': case 'lanzar': case 'cabeza':
+        case 'encestar': case 'malabares': case 'patear': case 'boton': case 'lanzar': case 'cabeza': case 'borrarTodo':
           empezarJuego(a);
+          break;
+        case 'pintar':
+          empezarPintar();
+          break;
+        case 'borrar':
+          empezarBorrar();
           break;
         case 'tirarse':
           // no sabe qué hacer: va al medio de la habitación grande y se tira de espaldas al piso
@@ -704,7 +727,30 @@
       mente.meta = mente.ruta.shift();
     }
 
+    // Elige qué hacer: sus ganas según el ánimo, por cuánto le gusta, y sin repetir tanto
+    function elegirLibre(ganas) {
+      const pesos = {};
+      for (const a in ganas)
+        pesos[a] = ganas[a] * (mente.gustos[a] ?? 1) * (mente.recientes.includes(a) ? 0.35 : 1) * azarEntre(0.7, 1.3);
+      return elegir(pesos);
+    }
+    const gustar = (a, f) => { if (a) mente.gustos[a] = limitar((mente.gustos[a] ?? 1) * f, [0.4, 3]); };
+    const PENSAMIENTOS = {
+      pintar: ['se me ocurrió algo...', 'voy a dibujar', '¡a pintar!'],
+      encestar: ['¡a encestar!', 'esta vez sí entra'],
+      apilar: ['haré una torre', 'una torre bien alta'],
+      malabares: ['a practicar malabares'],
+      dormir: ['tengo sueño...'],
+      tirarse: ['no sé qué hacer...', 'mmm...'],
+      borrar: ['eso no me gustó...', 'mejor lo arreglo'],
+      borrarTodo: ['¡a empezar de nuevo!'],
+      boton: ['¡más cubos!'],
+      patear: ['¡toma!'],
+      cabeza: ['¿y si...?'],
+    };
+
     function celebrar() {
+      gustar(mente.ultimo, 1.15);
       Object.assign(mente, { accion: 'celebrar', tAccion: 2, saltosPend: 2, tSalto: 0.7, mirarA: 'camara',
                              juego: null, meta: null, ruta: [], giroForzado: null });
     }
@@ -725,6 +771,7 @@
         if (d > 25) {
           dir = [dx / d, dz / d];
           rapido = (mente.accion === 'huir' ? 0.95 : RITMO_ANIMO[mente.animo]) * Math.min(1, d / 120 + 0.3);
+          if ((mente.corre || mente.accion === 'huir') && d > 160 && mente.cansado <= 0) rapido = RAPIDEZ_CORRER * Math.min(1, d / 300 + 0.4);
         } else if (mente.ruta && mente.ruta.length) {
           mente.meta = mente.ruta.shift();   // siguiente tramo del camino
         } else if (mente.accion === 'dormir') {
@@ -770,9 +817,10 @@
     // encestar: lo lanza al aro · apilar: arma una torre · malabares: lo tira para arriba y lo agarra
     // patear: le pega una patada · boton: aprieta el botón para que caigan más cubos
     function empezarJuego(tipo) {
-      if (tipo === 'boton') {
-        mente.juego = { tipo, fase: 'ir', t: 0 };
-        irA([CUARTOS[0].x0 + MARGEN, 0, BOTONES[0].z]);
+      if (tipo === 'boton' || tipo === 'borrarTodo') {
+        const boton = BOTONES[tipo === 'boton' ? 0 : 2];
+        mente.juego = { tipo: 'boton', boton, fase: 'ir', t: 0 };
+        irA(boton.pie);
         mente.tAccion = 25;
         return;
       }
@@ -809,11 +857,13 @@
     // llegó a donde iba durante un juego
     function llegoJugando() {
       const j = mente.juego, c = j.cubo;
+      if (j.tipo === 'pintar') { llegoPintando(j); return; }
+      if (j.tipo === 'borrar') { llegoBorrando(j); return; }
       if (j.fase === 'buscar') tomarCubo();
       else if (j.fase === 'ir') {             // frente al botón
         Object.assign(j, { fase: 'apretar', t: 0.6 });
-        mente.giroForzado = -Math.PI / 2;
-        mente.mirarA = [CUARTOS[0].x0, -140, BOTONES[0].z];
+        mente.giroForzado = j.boton.giro;
+        mente.mirarA = j.boton.punto;
       } else if (j.fase === 'llevar' && j.tipo === 'encestar') {
         Object.assign(j, { fase: 'apuntar', t: 0.9 });
         mente.giroForzado = Math.atan2(ARO.x - pos.x, ARO.z - pos.z);
@@ -879,13 +929,16 @@
       const c = j.cubo;
       if (c && !CUBOS.includes(c)) { mente.juego = null; mente.tAccion = 0; return; }   // lo borró el botón azul
       j.t -= dt;
+      if (j.tipo === 'pintar') { pintando(j, dt); return; }
+      if (j.tipo === 'borrar') { borrando(j, dt); return; }
       // si ya lo alcanza con la mano, no necesita llegar al punto exacto
       if (j.fase === 'buscar' && c.estado !== 'vuelo' && Math.hypot(c.x - pos.x, c.z - pos.z) < 125) tomarCubo();
       else if (j.fase === 'buscar' && !mente.meta) mente.tAccion = 0;
       if (j.fase === 'apretar' && j.t <= 0) {
-        presionar(BOTONES[0]);
+        presionar(j.boton);
         Object.assign(j, { fase: 'mirarArriba', t: 0 });
-        mente.mirarA = [-600, -650, -600];
+        if (j.boton.tipo === 'mas') mente.mirarA = [-600, -650, -600];
+        else { mente.mirarA = null; mente.aviso = '¡paredes limpias!'; mente.tAviso = 2; }
         mente.tAccion = 2.6;
       }
       if (j.fase === 'apuntar' && j.t <= 0) {
@@ -968,12 +1021,14 @@
       mente.nivelMalabar = Math.min(10, mente.nivelMalabar + (bien ? 1 : 0.5));   // aprende igual, aunque falle
       Object.assign(j, { fase: 'mirar', t: 0 });
       mente.aviso = bien ? `¡${j.lanzados} seguidos!` : 'ups'; mente.tAviso = 1.6;
+      if (!bien) gustar('malabares', 0.95);
       mente.tAccion = 1.4;
       if (bien) mente.despues = 'celebrar';
     }
 
     // Tocar una tecla le quita la vida propia (hasta que lo dejes de nuevo)
     function soltarCubo() {
+      guardarPlumon();
       for (const c of CUBOS) {
         if (c.estado === 'mano' || c.estado === 'cabeza') { c.estado = 'suelo'; c.vy = 0; }
         if (c.vueloMalabar) { c.vueloMalabar = null; c.vy = 0; }
@@ -1001,6 +1056,7 @@
 
     const TECLAS_USADAS = [
       'KeyW', 'KeyA', 'KeyS', 'KeyD',                     // mover
+      'ShiftLeft', 'ShiftRight',                          // correr
       'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',  // cámara
     ];
     document.addEventListener('keydown', e => {
@@ -1092,8 +1148,9 @@
         adelante /= largo;
         derecha  /= largo;
         const g = actual.giro * Math.PI / 180;
-        metaX = (Math.sin(g) * adelante + Math.cos(g) * derecha) * VELOCIDAD * lento;
-        metaZ = (-Math.cos(g) * adelante + Math.sin(g) * derecha) * VELOCIDAD * lento;
+        const corre = teclas.has('ShiftLeft') || teclas.has('ShiftRight') ? RAPIDEZ_CORRER : 1;
+        metaX = (Math.sin(g) * adelante + Math.cos(g) * derecha) * VELOCIDAD * lento * corre;
+        metaZ = (-Math.cos(g) * adelante + Math.sin(g) * derecha) * VELOCIDAD * lento * corre;
       } else if (reloj - ultimaOrden > QUIETO_PARA_VIVIR) {
         if (mente.accion === 'jugador') nuevaAccion();
         const { dir, rapido } = pensar(dt);
@@ -1135,7 +1192,7 @@
       golpe.empuje = [golpe.empuje[0] * frena, golpe.empuje[1] * frena];
       if (altura === 0) fasePaso += Math.hypot(pos.x - antesX, pos.z - antesZ) * RITMO_PASO;
       fuerzaPaso = suavizar(fuerzaPaso, rapidez > 30 && altura === 0 ? 1 : 0, 10, dt);
-      desplazPaso = Math.sin(fasePaso) * PASO_MAX * fuerzaPaso;
+      desplazPaso = Math.sin(fasePaso) * PASO_MAX * (1 + corriendo) * fuerzaPaso;
 
       camPos.x = suavizar(camPos.x, pos.x, SUAVIDAD_SEGUIR, dt);
       camPos.z = suavizar(camPos.z, pos.z, SUAVIDAD_SEGUIR, dt);
@@ -1179,6 +1236,7 @@
           soltarCubo();
           // erró muchos seguidos: se enoja y hace una pataleta
           Object.assign(mente, { fallos: 0, molesto: 6, molestoPor: 'tiros', aviso: '¡uf!' });
+          gustar('encestar', 0.85);
           if (mente.accion !== 'jugador')
             Object.assign(mente, { accion: 'pataleta', tAccion: 2.2, tSalto: 0, juego: null, meta: null, mirarA: null });
         }
@@ -1272,14 +1330,27 @@
 
     // ---- Los botones de la pared, junto a los cubos ----
     // rojo: caen más cubos del techo en esa esquina · azul: deja solo los cubos del principio
+    // morado (junto a la mesita): borra todos los dibujos de las paredes
     const BOTONES = [
-      { tipo: 'mas', z: -420, color: '#e04a3a', hundido: 0 },
-      { tipo: 'reiniciar', z: -300, color: '#3f7fe0', hundido: 0 },
+      { tipo: 'mas', pared: 'izq', z: -420, color: '#e04a3a', hundido: 0 },
+      { tipo: 'reiniciar', pared: 'izq', z: -300, color: '#3f7fe0', hundido: 0 },
+      { tipo: 'borrarTodo', pared: 'fondo', x: 560, color: '#8e4fd0', hundido: 0 },
     ];
+    for (const b of BOTONES) {
+      // dónde se para él para apretarlo, y hacia dónde mira
+      if (b.pared === 'izq') { b.pie = [CUARTOS[0].x0 + MARGEN, 0, b.z]; b.giro = -Math.PI / 2; b.punto = [CUARTOS[0].x0, -140, b.z]; }
+      else { b.pie = [b.x, 0, CUARTOS[0].z0 + MARGEN]; b.giro = Math.PI; b.punto = [b.x, -140, CUARTOS[0].z0]; }
+    }
     function carasBoton(b) {
-      const x = CUARTOS[0].x0;
-      return [...caja(x, x + 8, 100, 180, b.z - 36, b.z + 36, '#ece6da'),
-              ...caja(x + 8, x + 8 + 14 * (1 - 0.7 * b.hundido), 122, 158, b.z - 20, b.z + 20, b.color)];
+      const sale = 8 + 14 * (1 - 0.7 * b.hundido);
+      if (b.pared === 'izq') {
+        const x = CUARTOS[0].x0;
+        return [...caja(x, x + 8, 100, 180, b.z - 36, b.z + 36, '#ece6da'),
+                ...caja(x + 8, x + sale, 122, 158, b.z - 20, b.z + 20, b.color)];
+      }
+      const z = CUARTOS[0].z0;
+      return [...caja(b.x - 36, b.x + 36, 100, 180, z, z + 8, '#ece6da'),
+              ...caja(b.x - 20, b.x + 20, 122, 158, z + 8, z + sale, b.color)];
     }
     function presionar(b) {
       b.hundido = 1;
@@ -1287,11 +1358,11 @@
         for (let i = 0; i < 5 && CUBOS.length < MAX_CUBOS; i++)
           CUBOS.push(nuevoCubo(COLORES_CUBO[Math.floor(Math.random() * COLORES_CUBO.length)],
                                azarEntre(-660, -470), azarEntre(560, 720) + i * 60, azarEntre(-660, -470), azarEntre(0, 90)));
-      } else {
+      } else if (b.tipo === 'reiniciar') {
         if (mente.juego) { soltarCubo(); mente.tAccion = 0; }
         CUBOS.length = 0;
         CUBOS.push(...CUBOS_INICIO.map(a => nuevoCubo(...a)));
-      }
+      } else borrarTodo();
     }
 
     // La puerta: gira en una bisagra en z0 y se abre hacia el lado contrario de donde viene él
@@ -1608,7 +1679,7 @@
     const cabeza = { giro: 0, inclina: 0, ladeo: 0 };
     const brazos = { [-1]: { adelante: 0, abre: 0 }, [1]: { adelante: 0, abre: 0 } };
     const pupila = { x: 0, y: 0 };
-    let cuerpoY = 0, enElAire = 0;
+    let cuerpoY = 0, enElAire = 0, corriendo = 0;
     const GRADOS = 180 / Math.PI;
 
     function calcularPose(dt, enMundo, ojo) {
@@ -1677,7 +1748,8 @@
 
       // Brazos
       enElAire = suavizar(enElAire, altura > 0 ? 1 : 0, 10, dt);
-      const balanceo = Math.sin(fasePaso) * 26 * fuerzaPaso;
+      corriendo = suavizar(corriendo, rapidez > 1.25 && altura < 30 ? 1 : 0, 6, dt);
+      const balanceo = Math.sin(fasePaso) * (26 + 34 * corriendo) * fuerzaPaso;
       for (const lado of [-1, 1]) {
         let adelante = lado * balanceo + mente.sentado * 25 + (cansado ? 6 : 0);
         let abre = resp * 2.5 + enElAire * 40 + mente.susto * 30 - (cansado ? 10 : 0) - mente.sentado * 12;
@@ -1701,6 +1773,13 @@
         // tirado en el piso: brazos y piernas abiertos
         if (mente.tirado > 0.5) { abre = 70 + Math.sin(reloj * 0.8 + lado) * 6; adelante = 0; }
         if (j && lado === 1 && j.fase === 'apretar') { adelante = 88; abre = 0; }
+        if (j && lado === 1 && (j.tipo === 'pintar' || j.tipo === 'borrar') && j.fase === 'tomar') { adelante = 55; abre = 0; }
+        if (j && lado === 1 && (j.tipo === 'pintar' && j.fase === 'dibujar' || j.tipo === 'borrar' && j.fase === 'borrar') && j.punta) {
+          // el brazo apunta a donde está dibujando
+          const [lx, ly, lz] = aLocal(j.punta);
+          adelante = limitar(90 + Math.atan2(-ly - LATERAL_ORIGEN_Y, Math.max(lz, 40)) * GRADOS, [30, 170]);
+          abre = limitar(Math.atan2(lx - LATERAL_ORIGEN_X, Math.max(lz, 40)) * GRADOS - LATERAL_ANGULO + 10, [-40, 70]);
+        }
         if (j && j.tipo === 'malabares' && j.fase === 'malabar') {
           const empuja = j.lanzo && j.lanzo.lado === lado ? Math.max(0, 1 - (reloj - j.lanzo.t) / 0.18) : 0;
           adelante = 58 + empuja * 35; abre = -4;
@@ -1784,6 +1863,8 @@
       if (!(puerta.ang < 45 && paredOculta[cuartoDe(cc.x / cc.w)])) ponerObjeto(pu.caras, pu.m, pu.cuarto, null);
       for (const c of CUBOS) { const cu = carasCubo(c); ponerObjeto(cu.caras, cu.m, cuartoDe(c.x), c); }
       for (const b of BOTONES) ponerObjeto(carasBoton(b), null, 0, b);
+      for (const pl of PLUMONES) ponerObjeto(carasPlumon(pl), null, 0, null);
+      ponerObjeto(carasGoma(), null, 0, null);
 
       // Solo las caras que miran a la cámara (las de atrás quedan tapadas igual)
       const visibles = lista.filter(p => punto(p.n, restar(ojo, p.pts[0])) > 0.01);
@@ -1941,6 +2022,344 @@
       return salida;
     }
 
+
+    // =====================================================================
+    //  PINTAR: una mesita con plumones; toma uno a la vez y dibuja en las
+    //  paredes de la habitación principal lo que se le ocurra
+    // =====================================================================
+    const MESITA = { x0: 250, x1: 430, z0: -580, z1: -460, alto: 105 };
+    {
+      const { x0, x1, z0, z1, alto } = MESITA, p = 12;
+      mueble(0,
+        caja(x0, x1, alto - 14, alto, z0, z1, MADERA),                       // cubierta
+        caja(x0 + 6, x0 + 6 + p, 0, alto - 14, z0 + 6, z0 + 6 + p, MADERA_OSCURA),   // patas
+        caja(x1 - 6 - p, x1 - 6, 0, alto - 14, z0 + 6, z0 + 6 + p, MADERA_OSCURA),
+        caja(x0 + 6, x0 + 6 + p, 0, alto - 14, z1 - 6 - p, z1 - 6, MADERA_OSCURA),
+        caja(x1 - 6 - p, x1 - 6, 0, alto - 14, z1 - 6 - p, z1 - 6, MADERA_OSCURA));
+    }
+    OBSTACULOS.push([MESITA.x0 - 85, MESITA.x1 + 85, MESITA.z0 - 85, MESITA.z1 + 85]);
+    const FRENTE_MESITA = [(MESITA.x0 + MESITA.x1) / 2, 0, MESITA.z1 + 115];
+    const COLORES_PLUMON = {
+      rojo: '#e2463c', azul: '#3a6fd8', verde: '#3fae4f', amarillo: '#f1c232',
+      morado: '#8e5cc8', negro: '#2b2836', naranjo: '#f08a3c', cafe: '#8a5a3a',
+    };
+    const PLUMONES = Object.entries(COLORES_PLUMON).map(([nombre, color], i) => ({ nombre, color, i, enMesa: true }));
+    function carasPlumon(pl) {
+      if (pl.enMesa) {
+        const x = MESITA.x0 + 22 + pl.i * 19, z = (MESITA.z0 + MESITA.z1) / 2;
+        return [...caja(x - 5, x + 5, MESITA.alto, MESITA.alto + 9, z - 34, z + 26, pl.color),
+                ...caja(x - 5, x + 5, MESITA.alto, MESITA.alto + 9, z + 26, z + 36, '#f4f1ea')];   // tapa
+      }
+      const m = manos[1];
+      if (!m) return [];
+      const h = -m[1];
+      return [...caja(m[0] - 6, m[0] + 6, h - 40, h + 22, m[2] - 6, m[2] + 6, pl.color)];
+    }
+
+    // ---- Paredes que se pueden pintar: cada una lleva un canvas pegado ----
+    const PAREDES_PINTABLES = [];
+    const ESCALA_DIBUJO = 0.6;
+    function hacerPintable(el, eje, fijo, a0, a1, normal) {
+      const cv = document.createElement('canvas');
+      cv.width = (a1 - a0) * ESCALA_DIBUJO;
+      cv.height = ALTO_CUARTO * ESCALA_DIBUJO;
+      Object.assign(cv.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', pointerEvents: 'none' });
+      el.appendChild(cv);
+      const ctx = cv.getContext('2d');
+      ctx.scale(ESCALA_DIBUJO, ESCALA_DIBUJO);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      // s: posición a lo largo de la pared (x o z del mundo) · h: altura
+      const aU = s => eje === 'x' ? (normal > 0 ? s - a0 : a1 - s) : (normal > 0 ? a1 - s : s - a0);
+      PAREDES_PINTABLES.push({
+        ctx, eje, fijo, a0, a1, normal, dibujos: [],
+        aCanvas: (s, h) => [aU(s), ALTO_CUARTO - h],
+        enMundo: (s, h) => eje === 'x' ? [s, -h, fijo] : [fijo, -h, s],
+        paraPararse: s => eje === 'x' ? [s, 0, fijo + normal * (MARGEN + 5)] : [fijo + normal * (MARGEN + 5), 0, s],
+        mirar: eje === 'x' ? Math.atan2(0, -normal) : Math.atan2(-normal, 0),
+      });
+    }
+    // lugares de la pared donde no conviene dibujar (el aro y los botones)
+    const ZONAS_OCUPADAS = [
+      { eje: 'x', fijo: -700, s0: ARO.x - 160, s1: ARO.x + 160 },
+      { eje: 'z', fijo: -700, s0: BOTONES[0].z - 90, s1: BOTONES[1].z + 90 },
+    ];
+    // Elige dónde dibujar: un lugar libre al que pueda llegar
+    function elegirLugar(ancho) {
+      for (let intento = 0; intento < 40; intento++) {
+        // prefiere las paredes que se ven (la de adelante casi siempre es la "cuarta pared")
+        const p = PAREDES_PINTABLES[+elegir({ 0: 0.45, 1: 0.15, 2: 0.4 })];
+        const s = azarEntre(p.a0 + MARGEN + ancho / 2, p.a1 - MARGEN - ancho / 2);
+        const pie = p.paraPararse(s);
+        if (!libre(pie[0], pie[2])) continue;
+        if (ZONAS_OCUPADAS.some(z => z.eje === p.eje && z.fijo === p.fijo && s + ancho / 2 > z.s0 && s - ancho / 2 < z.s1)) continue;
+        const h = azarEntre(220, 300);
+        const choca = p.dibujos.some(o => Math.abs(o.s - s) < (o.ancho + ancho) / 2 + 20 && Math.abs(o.h - h) < 260);
+        if (choca && intento < 30) continue;
+        return { pared: p, s, h };
+      }
+      return null;
+    }
+
+    // ---- Lo que se le ocurre dibujar ----
+    // Cada dibujo son partes; cada parte tiene un color ('cualquiera' = el que le guste) y trazos
+    // (listas de puntos x, y con y hacia arriba, en unidades de pared)
+    const circulo = (cx, cy, r, n = 24, giro = 0) =>
+      Array.from({ length: n + 1 }, (_, i) => { const a = giro + i / n * Math.PI * 2; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; });
+    const IDEAS = {
+      'un sol': () => [{ color: 'amarillo', trazos: [circulo(0, 0, 38),
+        ...Array.from({ length: 9 }, (_, i) => { const a = i / 9 * Math.PI * 2; return [[Math.cos(a) * 52, Math.sin(a) * 52], [Math.cos(a) * 80, Math.sin(a) * 80]]; })] }],
+      'una flor': () => {
+        const petalos = Array.from({ length: 6 }, (_, i) => { const a = i / 6 * Math.PI * 2; return circulo(Math.cos(a) * 28, 40 + Math.sin(a) * 28, 18, 14); });
+        return [{ color: 'verde', trazos: [[[0, 25], [4, -20], [0, -90]], [[2, -45], [32, -30], [40, -50], [6, -55]]] },
+                { color: 'cualquiera', trazos: [...petalos, circulo(0, 40, 9, 10)] }];
+      },
+      'una casa': () => [{ color: 'cualquiera', trazos: [[[-70, -90], [70, -90], [70, 10], [-70, 10], [-70, -90]],
+                                                        [[-85, 5], [0, 85], [85, 5]], [[-18, -90], [-18, -35], [18, -35], [18, -90]]] },
+                         { color: 'azul', trazos: [[[30, -20], [55, -20], [55, -2], [30, -2], [30, -20]]] }],
+      'una carita': () => [{ color: 'cualquiera', trazos: [circulo(0, 0, 70, 28), circulo(-25, 20, 6, 8), circulo(25, 20, 6, 8),
+                                                          Array.from({ length: 9 }, (_, i) => { const a = Math.PI * (1.15 + i / 8 * 0.7); return [Math.cos(a) * 40, -5 + Math.sin(a) * 40]; })] }],
+      'una estrella': () => [{ color: 'cualquiera', trazos: [Array.from({ length: 11 }, (_, i) => {
+        const a = Math.PI / 2 + i / 10 * Math.PI * 2, r = i % 2 ? 32 : 80; return [Math.cos(a) * r, Math.sin(a) * r]; })] }],
+      'un corazón': () => [{ color: 'rojo', trazos: [Array.from({ length: 41 }, (_, i) => {
+        const t = i / 40 * Math.PI * 2; return [16 * Math.sin(t) ** 3 * 4.5, (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) * 4.5]; })] }],
+      'un espiral': () => [{ color: 'cualquiera', trazos: [Array.from({ length: 70 }, (_, i) => {
+        const a = i * 0.32, r = 3 + i * 1.15; return [Math.cos(a) * r, Math.sin(a) * r]; })] }],
+      'un árbol': () => [{ color: 'cafe', trazos: [[[-14, -100], [-10, 0]], [[14, -100], [10, 0]], [[-30, -100], [30, -100]]] },
+                         { color: 'verde', trazos: [circulo(0, 45, 55, 26), circulo(-25, 55, 22, 12), circulo(22, 30, 18, 12)] }],
+      'unas olas': () => [{ color: 'azul', trazos: [0, 1, 2].map(k => Array.from({ length: 30 }, (_, i) => [-100 + i * 7, -40 + k * 40 + Math.sin(i * 0.6 + k) * 14])) }],
+      'una nube': () => [{ color: 'azul', trazos: [[...circulo(-45, 0, 30, 10, Math.PI / 2).slice(0, 8), ...circulo(0, 18, 38, 12, Math.PI).slice(0, 8),
+                                                   ...circulo(45, 0, 30, 10, Math.PI * 1.4).slice(0, 8), [-45, -30]]] },
+                         { color: 'azul', trazos: [[[-30, -45], [-38, -70]], [[0, -45], [-8, -75]], [[30, -45], [22, -70]]] }],
+      'un monito': () => [{ color: 'cualquiera', trazos: [circulo(0, 60, 22, 14), [[0, 38], [0, -30]], [[-40, 10], [0, 20], [40, 10]],
+                                                         [[-30, -90], [0, -30], [30, -90]]] }],
+      'un autorretrato': () => [{ color: 'negro', trazos: [[[-45, -100], [45, -100], [45, -10], [-45, -10], [-45, -100]],
+        [[-35, -10], [-35, 90], [35, 90], [35, -10]], [[-40, 50], [40, 50]], circulo(-18, 30, 10, 8), circulo(18, 30, 10, 8),
+        [[-12, -55], [12, -40]], [[-12, -40], [12, -55]], [[0, 90], [6, 112], [-4, 120]]] }],
+      'su nombre: HOLA': () => [{ color: 'cualquiera', trazos: [
+        [[-110, -40], [-110, 40]], [[-80, -40], [-80, 40]], [[-110, 0], [-80, 0]],
+        circulo(-40, 0, 26, 16, Math.PI / 2),
+        [[0, 40], [0, -40], [35, -40]],
+        [[60, -40], [80, 40], [100, -40]], [[67, -10], [93, -10]]] }],
+      'un garabato': () => [{ color: 'cualquiera', trazos: [(() => {
+        let x = 0, y = 0, a = Math.random() * 6; const pts = [];
+        for (let i = 0; i < 45; i++) { a += azarEntre(-1.4, 1.4); x = limitar(x + Math.cos(a) * 14, [-90, 90]); y = limitar(y + Math.sin(a) * 14, [-80, 80]); pts.push([x, y]); }
+        return pts; })()] }],
+    };
+    // tamaño (ancho) aproximado de una idea
+    const anchoDe = partes => {
+      const xs = partes.flatMap(p => p.trazos.flat().map(q => q[0]));
+      return Math.max(...xs) - Math.min(...xs) + 30;
+    };
+
+    // Elige qué dibujar (con preferencia por lo que no ha dibujado hace poco)
+    function idearDibujo() {
+      const nombres = Object.keys(IDEAS);
+      const pesos = Object.fromEntries(nombres.map(n => [n, (mente.dibujados || []).includes(n) ? 0.25 : 1]));
+      const nombre = elegir(pesos);
+      mente.dibujados = [nombre, ...(mente.dibujados || [])].slice(0, 4);
+      const partes = IDEAS[nombre]();
+      // escala y un poquito de inclinación: nunca le sale igual
+      const esc = azarEntre(1.2, 1.7), incl = azarEntre(-0.12, 0.12);
+      const favorito = Object.keys(COLORES_PLUMON)[Math.floor(Math.random() * 7)];
+      for (const p of partes) {
+        if (p.color === 'cualquiera') p.color = favorito;
+        p.trazos = p.trazos.map(t => t.map(([x, y]) => [
+          (x * Math.cos(incl) - y * Math.sin(incl)) * esc + azarEntre(-2, 2),
+          (x * Math.sin(incl) + y * Math.cos(incl)) * esc + azarEntre(-2, 2)]));
+      }
+      return { nombre, partes };
+    }
+
+    // ---- La goma de borrar (en la mesita, junto a los plumones) ----
+    const GOMA = { enMesa: true };
+    function carasGoma() {
+      if (GOMA.enMesa) {
+        const x = 330, z = MESITA.z1 - 12;
+        return [...caja(x - 24, x + 24, MESITA.alto, MESITA.alto + 14, z - 9, z + 7, '#f2a7b5'),
+                ...caja(x - 24, x - 4, MESITA.alto, MESITA.alto + 14.5, z - 9.5, z + 7.5, '#4f7fd0')];
+      }
+      const m = manos[1];
+      if (!m) return [];
+      const h = -m[1];
+      return [...caja(m[0] - 10, m[0] + 10, h - 12, h + 14, m[2] - 22, m[2] + 22, '#f2a7b5')];
+    }
+    // vuelve a dibujar una pared entera desde sus datos (se usa al borrar)
+    function redibujar(p) {
+      p.ctx.clearRect(0, 0, p.a1 - p.a0, ALTO_CUARTO);
+      p.ctx.lineWidth = 6;
+      for (const d of p.dibujos) for (const t of d.trazos) {
+        const desde = Math.floor(t.desde);
+        if (t.pts.length - desde < 2) continue;
+        p.ctx.strokeStyle = t.color;
+        p.ctx.beginPath();
+        t.pts.slice(desde).forEach((q, i) => { const c = p.aCanvas(...q); p.ctx[i ? 'lineTo' : 'moveTo'](c[0], c[1]); });
+        p.ctx.stroke();
+      }
+    }
+    function borrarTodo() {
+      for (const p of PAREDES_PINTABLES) { p.dibujos.length = 0; redibujar(p); }
+      if (mente.juego && (mente.juego.tipo === 'pintar' || mente.juego.tipo === 'borrar')) { soltarCubo(); mente.tAccion = 0; }
+    }
+    // Elige qué borrar: casi siempre el dibujo que menos le gusta, y de ahí algunos trazos (o todo)
+    function empezarBorrar() {
+      const todos = PAREDES_PINTABLES.flatMap(p => p.dibujos.filter(d => d.trazos.length).map(d => ({ p, d })));
+      if (!todos.length) { mente.tAccion = 0; return; }
+      todos.sort((a, b) => a.d.gusto - b.d.gusto);
+      const { p, d } = Math.random() < 0.7 ? todos[0] : todos[Math.floor(Math.random() * todos.length)];
+      let trazos;
+      if (Math.random() < 0.25) trazos = [...d.trazos];
+      else trazos = [...d.trazos].sort(() => Math.random() - 0.5).slice(0, 1 + Math.floor(Math.random() * Math.min(3, d.trazos.length)));
+      mente.juego = { tipo: 'borrar', fase: 'aMesa', pared: p, dibujo: d, trazos, idx: 0, t: 0 };
+      irA(FRENTE_MESITA);
+      mente.tAccion = 60;
+    }
+    function llegoBorrando(j) {
+      if (j.fase === 'aMesa') {
+        guardarPlumon();
+        Object.assign(j, { fase: 'tomar', t: 0.5 });
+        mente.giroForzado = Math.PI;
+        mente.mirarA = [330, -MESITA.alto, MESITA.z1 - 12];
+      } else if (j.fase === 'aPared') {
+        j.fase = 'borrar';
+        mente.giroForzado = j.pared.mirar;
+      } else if (j.fase === 'devolver') {
+        GOMA.enMesa = true;
+        Object.assign(j, { fase: 'fin', t: 0 });
+        mente.tAccion = 0.6;
+        if (Math.random() < 0.4) mente.despues = 'pintar';   // a veces dibuja otra cosa
+      }
+    }
+    // pasa la goma por encima de cada trazo que eligió, y el trazo va desapareciendo
+    function borrando(j, dt) {
+      if (j.fase === 'tomar' && j.t <= 0) {
+        GOMA.enMesa = false;
+        j.fase = 'aPared';
+        irA(j.pared.paraPararse(j.dibujo.s));
+        mente.mirarA = j.pared.enMundo(j.dibujo.s, j.dibujo.h);
+      }
+      if (j.fase !== 'borrar') return;
+      const t = j.trazos[j.idx];
+      if (!t || !j.pared.dibujos.includes(j.dibujo) || !j.dibujo.trazos.includes(t)) { terminarBorrar(j); return; }
+      let resto = dt * 200;
+      while (resto > 0 && t.desde < t.pts.length - 1) {
+        const i = Math.floor(t.desde), f = t.desde - i, a = t.pts[i], b = t.pts[i + 1];
+        const largo = Math.hypot(b[0] - a[0], b[1] - a[1]) || 0.01;
+        const paso = Math.min(resto, largo * (1 - f));
+        t.desde = i + f + paso / largo;
+        if (t.desde - i >= 0.999) t.desde = i + 1;
+        resto -= paso;
+      }
+      const i = Math.min(Math.floor(t.desde), t.pts.length - 1), q = t.pts[i];
+      // la mano va y viene un poquito, como frotando
+      j.punta = j.pared.enMundo(q[0] + Math.sin(reloj * 30) * 8, q[1] + Math.cos(reloj * 23) * 6);
+      mente.mirarA = j.punta;
+      redibujar(j.pared);
+      if (t.desde >= t.pts.length - 1) {
+        j.dibujo.trazos = j.dibujo.trazos.filter(x => x !== t);
+        j.idx++;
+        if (j.idx >= j.trazos.length) terminarBorrar(j);
+      }
+    }
+    function terminarBorrar(j) {
+      if (!j.dibujo.trazos.length) j.pared.dibujos = j.pared.dibujos.filter(x => x !== j.dibujo);
+      redibujar(j.pared);
+      mente.aviso = j.dibujo.trazos.length ? 'mejor así' : 'chao, ' + j.dibujo.nombre.replace(/^(un|una|unas|su nombre:) /, '');
+      mente.tAviso = 1.8;
+      j.punta = null;
+      j.fase = 'devolver';
+      irA(FRENTE_MESITA);
+    }
+
+    // ---- El juego de pintar ----
+    function empezarPintar() {
+      const idea = idearDibujo();
+      const lugar = elegirLugar(anchoDe(idea.partes));
+      if (!lugar) { mente.tAccion = 0; return; }
+      // el dibujo queda guardado como trazos (puntos a lo largo de la pared y altura), así se puede borrar
+      const dibujo = { nombre: idea.nombre, s: lugar.s, h: lugar.h, ancho: anchoDe(idea.partes), gusto: Math.random(), trazos: [] };
+      lugar.pared.dibujos.push(dibujo);
+      mente.juego = { tipo: 'pintar', fase: 'aMesa', idea, lugar, dibujo, parte: 0, trazo: 0, avance: 0, plumon: null, t: 0 };
+      irA(FRENTE_MESITA);
+      mente.tAccion = 90;
+    }
+    const plumonEnMano = () => PLUMONES.find(p => !p.enMesa);
+    function guardarPlumon() { for (const p of PLUMONES) p.enMesa = true; GOMA.enMesa = true; }
+
+    function llegoPintando(j) {
+      if (j.fase === 'aMesa') {
+        // deja el que tenía y toma el del color que necesita
+        guardarPlumon();
+        if (j.parte >= j.idea.partes.length) {          // terminó: solo vino a dejarlo
+          Object.assign(j, { fase: 'listo', t: 0 });
+          mente.tAccion = 0.8;
+          return;
+        }
+        const color = j.idea.partes[j.parte].color;
+        const pl = PLUMONES.find(p => p.nombre === color) || PLUMONES[0];
+        Object.assign(j, { fase: 'tomar', t: 0.5 });
+        mente.giroForzado = Math.atan2(0, -1);   // mira la mesita
+        mente.mirarA = [pl.i * 19 + MESITA.x0 + 22, -MESITA.alto, (MESITA.z0 + MESITA.z1) / 2];
+        j.siguiente = pl;
+      } else if (j.fase === 'aPared') {
+        Object.assign(j, { fase: 'dibujar' });
+        mente.giroForzado = j.lugar.pared.mirar;
+      } else if (j.fase === 'alejarse') {
+        Object.assign(j, { fase: 'admirar', t: 2.2 });
+        mente.giroForzado = j.lugar.pared.mirar;
+        mente.mirarA = j.lugar.pared.enMundo(j.lugar.s, j.lugar.h);
+        mente.aviso = `¡dibujé ${j.idea.nombre}!`; mente.tAviso = 2.2;
+      }
+    }
+    // dibuja un poquito cada cuadro, siguiendo los trazos
+    function pintando(j, dt) {
+      if (j.fase === 'tomar' && j.t <= 0) {
+        j.siguiente.enMesa = false;
+        j.fase = 'aPared';
+        irA(j.lugar.pared.paraPararse(j.lugar.s));
+        mente.mirarA = j.lugar.pared.enMundo(j.lugar.s, j.lugar.h);
+      }
+      if (j.fase === 'admirar' && j.t <= 0) { j.fase = 'aMesa'; irA(FRENTE_MESITA); mente.mirarA = null; }
+      if (j.fase === 'listo' && j.t <= 0) { mente.despues = 'celebrar'; mente.tAccion = 0; j.fase = 'fin'; }
+      if (j.fase !== 'dibujar') return;
+      if (!j.lugar.pared.dibujos.includes(j.dibujo)) j.lugar.pared.dibujos.push(j.dibujo);   // por si apretaron el botón morado
+      const parte = j.idea.partes[j.parte], pl = plumonEnMano();
+      const { pared, s, h } = j.lugar;
+      let resto = dt * 230;                                 // qué tan rápido dibuja
+      pared.ctx.strokeStyle = pl ? pl.color : '#333';
+      pared.ctx.lineWidth = 6;
+      while (resto > 0 && j.trazo < parte.trazos.length) {
+        const t = parte.trazos[j.trazo];
+        const i = Math.floor(j.avance), f = j.avance - i;
+        if (i >= t.length - 1) { j.trazo++; j.avance = 0; j.rec = null; continue; }
+        const a = t[i], b = t[i + 1], largo = Math.hypot(b[0] - a[0], b[1] - a[1]) || 0.01;
+        const paso = Math.min(resto, largo * (1 - f));
+        const f2 = f + paso / largo;
+        const p0 = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], p1 = [a[0] + (b[0] - a[0]) * f2, a[1] + (b[1] - a[1]) * f2];
+        const dir = (pared.eje === 'x' ? 1 : -1) * Math.sign(pared.normal);
+        const q0 = [s + p0[0] * dir, h + p0[1]], q1 = [s + p1[0] * dir, h + p1[1]];
+        if (!j.rec) { j.rec = { color: pl ? pl.color : '#333', pts: [q0], desde: 0 }; j.dibujo.trazos.push(j.rec); }
+        j.rec.pts.push(q1);
+        const c0 = pared.aCanvas(...q0), c1 = pared.aCanvas(...q1);
+        pared.ctx.beginPath(); pared.ctx.moveTo(c0[0], c0[1]); pared.ctx.lineTo(c1[0], c1[1]); pared.ctx.stroke();
+        j.punta = pared.enMundo(s + p1[0] * (pared.eje === 'x' ? 1 : -1) * Math.sign(pared.normal), h + p1[1]);
+        resto -= paso;
+        j.avance = f2 >= 0.999 ? i + 1 : i + f2;
+      }
+      if (j.punta) mente.mirarA = j.punta;
+      if (j.trazo >= parte.trazos.length) {
+        j.parte++; j.trazo = 0; j.avance = 0; j.punta = null;
+        if (j.parte < j.idea.partes.length && j.idea.partes[j.parte].color !== (pl && pl.nombre)) {
+          j.fase = 'aMesa'; irA(FRENTE_MESITA);           // necesita otro color
+        } else if (j.parte >= j.idea.partes.length) {
+          // da unos pasos atrás para mirar lo que hizo
+          const p = j.lugar.pared.paraPararse(j.lugar.s);
+          j.fase = 'alejarse';
+          irA(dentroDelCuarto(CUARTOS[0], p[0] + (pared.eje === 'z' ? pared.normal * 230 : 0), p[2] + (pared.eje === 'x' ? pared.normal * 230 : 0)));
+        }
+      }
+    }
+
     // ---- Construcción de la casa ----
     const superficies = [];   // paredes con su plano, para esconder las que tapan al personaje
     function plano(clase, ancho, alto, transform, normal, punto) {
@@ -1965,7 +2384,7 @@
         punto = [fijo, yc, centro];
         normal = [normal, 0, 0];
       }
-      plano(clase, ancho, alto, t, normal, punto);
+      return plano(clase, ancho, alto, t, normal, punto);
     }
     const H = ALTO_CUARTO;
     CUARTOS.forEach((c, i) => {
@@ -1974,15 +2393,20 @@
       plano(k('piso'), an, fo, `translate3d(${cx}px, 0, ${cz}px) rotateX(90deg)`);
       plano(k('techo'), an, fo, `translate3d(${cx}px, ${-H}px, ${cz}px) rotateX(-90deg)`);
       plano('lampara', 90, 90, `translate3d(${cx}px, ${-H + 1}px, ${cz}px) rotateX(-90deg)`);
-      pared(k('pared'), 'x', c.z0, c.x0, c.x1, 0, H, 1);    // atrás
-      pared(k('pared'), 'x', c.z1, c.x0, c.x1, 0, H, -1);   // adelante
+      const atras = pared(k('pared'), 'x', c.z0, c.x0, c.x1, 0, H, 1);
+      const adelante = pared(k('pared'), 'x', c.z1, c.x0, c.x1, 0, H, -1);
+      // en la habitación principal se puede pintar en las paredes enteras
+      if (i === 0) { hacerPintable(atras, 'x', c.z0, c.x0, c.x1, 1); hacerPintable(adelante, 'x', c.z1, c.x0, c.x1, -1); }
       // paredes de los costados: la que da a la otra habitación tiene la puerta
       for (const [x, n] of [[c.x0, 1], [c.x1, -1]]) {
         if (x === PUERTA.x) {
           pared(k('pared'), 'z', x, c.z0, PUERTA.z0, 0, H, n);
           pared(k('pared'), 'z', x, PUERTA.z1, c.z1, 0, H, n);
           pared(k('pared'), 'z', x, PUERTA.z0, PUERTA.z1, PUERTA.alto, H, n);
-        } else pared(k('pared'), 'z', x, c.z0, c.z1, 0, H, n);
+        } else {
+          const lado = pared(k('pared'), 'z', x, c.z0, c.z1, 0, H, n);
+          if (i === 0) hacerPintable(lado, 'z', x, c.z0, c.z1, n);
+        }
       }
     });
 
@@ -2009,7 +2433,7 @@
       const ang = mente.susto * 12;
       inclinaSusto = [ojoAnterior[2] / l * ang, -ojoAnterior[0] / l * ang];
       personaje.style.transform =
-        `translateY(${-altura}px) rotateX(${inclinaSusto[0] + golpe.tx}deg) rotateZ(${inclinaSusto[1] + golpe.tz}deg)` +
+        `translateY(${-altura}px) rotateX(${inclinaSusto[0] + golpe.tx - 9 * corriendo}deg) rotateZ(${inclinaSusto[1] + golpe.tz}deg)` +
         ` rotateX(${90 * Math.max(suave(limitar((mente.acostado - 0.25) / 0.75, [0, 1])), suave(mente.tirado))}deg)`;
       const lejos = Math.min(altura / 200, 1);
       sombra.style.transform =
