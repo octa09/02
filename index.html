@@ -7,10 +7,11 @@
   <style>
     :root {
       /* Huella de la sombra en el piso */
-      --ancho: 140px;
-      --fondo: 120px;
-      /* Tamaño del piso */
-      --piso: 5000px;
+      --ancho: 160px;
+      --fondo: 170px;
+      /* El cuarto (una caja): ancho/fondo y alto */
+      --cuarto: 1400px;
+      --alto-cuarto: 760px;
     }
 
     html, body {
@@ -23,7 +24,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(#ecebf5, #f6f5fa 55%);
+      background: #26232d;   /* lo que hay fuera del cuarto */
       perspective: 900px;
       touch-action: none;
       user-select: none;
@@ -41,25 +42,61 @@
       transform-style: preserve-3d;
     }
 
-    /* Piso plano grande con cuadrícula, que se pierde a lo lejos.
-       Se dibuja a la mitad de tamaño y se agranda x2: se ve igual
-       pero cuesta mucho menos y la página va más fluida. */
-    .piso {
+    /* ---- El cuarto: piso, 4 paredes y techo ----
+       Cada superficie solo se ve por su lado de adentro (backface-visibility: hidden),
+       así la pared que queda entre la cámara y el personaje desaparece sola:
+       la cámara es la "cuarta pared". La luz cálida viene del centro del techo. */
+    .pared, .piso, .techo {
       position: absolute;
-      width: calc(var(--piso) / 2);
-      height: calc(var(--piso) / 2);
-      left: calc(var(--piso) / -4);
-      top: calc(var(--piso) / -4);
-      transform: rotateX(90deg) scale(2);
-      will-change: transform;
-      background-color: #dcd6ee;
-      background-image:
-        linear-gradient(#cbc2e8 1px, transparent 1px),
-        linear-gradient(90deg, #cbc2e8 1px, transparent 1px);
-      background-size: 25px 25px;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .piso, .techo {
+      width: var(--cuarto);
+      height: var(--cuarto);
+      left: calc(var(--cuarto) / -2);
+      top: calc(var(--cuarto) / -2);
+    }
+    .piso {
+      transform: rotateX(90deg);
+      background:
+        linear-gradient(rgba(120, 80, 40, 0.10) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(120, 80, 40, 0.10) 1px, transparent 1px),
+        radial-gradient(circle at 50% 50%, #f6e7d2 0%, #e2cfb6 45%, #b9a68f 100%);
+      background-size: 70px 70px, 70px 70px, 100% 100%;
       background-position: center;
-      -webkit-mask-image: radial-gradient(circle, #000 12%, transparent 45%);
-              mask-image: radial-gradient(circle, #000 12%, transparent 45%);
+    }
+    .techo {
+      transform: translate3d(0, calc(var(--alto-cuarto) * -1), 0) rotateX(-90deg);
+      background: radial-gradient(circle at 50% 50%, #fff6e2 0%, #e9dcc7 25%, #a99a87 100%);
+    }
+    .pared {
+      width: var(--cuarto);
+      height: var(--alto-cuarto);
+      left: calc(var(--cuarto) / -2);
+      top: calc(var(--alto-cuarto) / -2);
+      /* más clara arriba al centro (cerca de la luz), más oscura abajo y en las esquinas */
+      background:
+        radial-gradient(ellipse 70% 90% at 50% 0%, rgba(255, 236, 200, 0.55), rgba(255, 236, 200, 0) 70%),
+        linear-gradient(#e6d8c4, #cdbca6 70%, #b7a58f);
+    }
+    .pared.atras     { transform: translate3d(0, calc(var(--alto-cuarto) / -2), calc(var(--cuarto) / -2)); }
+    .pared.adelante  { transform: translate3d(0, calc(var(--alto-cuarto) / -2), calc(var(--cuarto) / 2)) rotateY(180deg); }
+    .pared.izquierda { transform: translate3d(calc(var(--cuarto) / -2), calc(var(--alto-cuarto) / -2), 0) rotateY(90deg); }
+    .pared.derecha   { transform: translate3d(calc(var(--cuarto) / 2), calc(var(--alto-cuarto) / -2), 0) rotateY(-90deg); }
+
+    /* La lámpara en el centro del techo */
+    .lampara {
+      position: absolute;
+      width: 90px;
+      height: 90px;
+      left: -45px;
+      top: -45px;
+      border-radius: 50%;
+      transform: translate3d(0, calc(var(--alto-cuarto) * -1 + 1px), 0) rotateX(-90deg);
+      background: radial-gradient(circle, #fffbea 0%, #ffe9b8 40%, rgba(255, 220, 160, 0) 72%);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
     }
 
     .jugador {
@@ -77,10 +114,10 @@
       height: var(--fondo);
       left: calc(var(--ancho) / -2);
       top: calc(var(--fondo) / -2);
-      transform: translateY(-1px) rotateX(90deg) scale(1.3);
-      background: rgba(40, 20, 90, 0.35);
+      transform: translateY(-1px) rotateX(90deg) scale(1.2);
+      background: rgba(70, 40, 15, 0.38);
       filter: blur(12px);
-      border-radius: 50%;
+      border-radius: 25%;
     }
 
     /* El rectángulo, parado con la base sobre el piso */
@@ -101,6 +138,17 @@
       pointer-events: none;
     }
 
+    /* Cómo se siente ahora */
+    .animo {
+      position: fixed;
+      top: 14px;
+      left: 16px;
+      font: 13px system-ui, sans-serif;
+      color: #7a6650;
+      letter-spacing: 0.04em;
+      pointer-events: none;
+    }
+
     .ayuda {
       position: fixed;
       bottom: 16px;
@@ -108,14 +156,21 @@
       right: 0;
       text-align: center;
       font: 14px system-ui, sans-serif;
-      color: #6b6290;
+      color: #7a6650;
       pointer-events: none;
     }
   </style>
 </head>
 <body>
   <div class="mundo">
+    <!-- El cuarto -->
     <div class="piso"></div>
+    <div class="techo"></div>
+    <div class="lampara"></div>
+    <div class="pared atras"></div>
+    <div class="pared adelante"></div>
+    <div class="pared izquierda"></div>
+    <div class="pared derecha"></div>
     <!-- El jugador: personaje + su sombra, se mueven juntos -->
     <div class="jugador">
       <div class="sombra"></div>
@@ -125,7 +180,8 @@
 
   <canvas id="pelota"></canvas>
 
-  <div class="ayuda">W A S D: mover · Espacio: saltar · Flechas o arrastrar: mover la cámara · Rueda: acercar o alejar</div>
+  <div class="ayuda">W A S D: mover · Espacio: saltar · Flechas o arrastrar: mover la cámara · Rueda: zoom · Si lo dejas solo, hace su vida</div>
+  <div class="animo">curioso</div>
 
   <script>
     const mundo = document.querySelector('.mundo');
@@ -134,120 +190,490 @@
     const sombra = document.querySelector('.sombra');
 
     // ===================== EL PERSONAJE =====================
-    // Una pelota blanca con dos patitas, hecha de cubitos pequeños.
-    const VOXEL  = 8;    // tamaño de cada cubito en píxeles (más chico = más redondo)
-    const RADIO  = 10;   // radio de la pelota, en cubitos
-    const PIERNA = 7;    // largo de las patitas que se ve debajo de la pelota, en cubitos
-    const SEPARACION = 4; // qué tan separadas están las patitas (desde el centro)
+    // De abajo hacia arriba: dos pies gruesos, un cubo y un rectángulo alto.
+    // En la unión del cubo y el rectángulo hay un cuadrado más chico que los "atraviesa"
+    // y se asoma por delante.
+    // Medidas en píxeles.
+    const LADO        = 140;  // tamaño del cubo
+    const PIE_ALTO    = 30;   // grosor de cada pie
+    const PIE_HUECO   = 14;   // espacio entre los dos pies
+    const ASOMA_LADO  = 8;    // cuánto se asoman los pies por los costados del cubo
+    const ASOMA_FRENTE = 16;  // cuánto se asoman por delante
+    const ASOMA_ATRAS = 4;    // cuánto se asoman por detrás
+    const CRUCE       = 90;   // bloque que atraviesa: alto
+    const CRUCE_ANCHO = LADO - 20; // bloque que atraviesa: ancho (le falta un poco a cada lado)
+    const BRAZO_SALE  = 48;   // bloques de los costados: cuánto salen por fuera del cubo
+    const BRAZO_ALTO  = 70;   // bloques de los costados: alto
+    const BRAZO_FONDO = 60;   // bloques de los costados: profundidad
+    const BRAZO_Z     = 40;   // bloques de los costados: dónde está su centro (adelante/atrás)
+    const CRUCE_SALE  = 35;   // cuánto se asoma por delante del cubo
+    const PARA_ANCHO  = 72;   // las dos placas: ancho de cada una (se juntan en el centro)
+    const PARA_ALTO   = 85;   // alto
+    const PARA_FONDO  = 16;   // grosor por delante del rectángulo alto
+    const PARA_ATRAS  = 40;   // cuánto se meten hacia atrás dentro del rectángulo alto
+    const TOPE_ANCHO  = 110;  // rectángulo de arriba: ancho
+    const TOPE_FONDO  = 90;   // rectángulo de arriba: profundidad
+    const TOPE_ALTO   = 185;  // rectángulo de arriba: alto (largo hacia arriba)
+    const LATERAL_GROSOR = 54;  // brazos: grosor (su sección es cuadrada)
+    const LATERAL_LARGO  = 88;  // brazos: largo
+    const LATERAL_ANGULO = 30;  // inclinación en diagonal (grados), abiertos hacia afuera
+    const LATERAL_ORIGEN_X = 48;  // dónde empieza la punta de arriba, dentro del cubo (desde el centro)
+    const LATERAL_ORIGEN_Y = 122; // altura de esa punta (dentro del cubo)
     const BLANCO = '#ffffff';
-
-    const CENTRO_Y = PIERNA + RADIO; // altura del centro de la pelota (en cubitos)
-    const CADERA_Y = PIERNA + 2;     // desde dónde giran las patitas al caminar
-
-    function crearPelota() {
-      const v = new Set();
-      for (let x = -RADIO; x <= RADIO; x++)
-        for (let y = -RADIO; y <= RADIO; y++)
-          for (let z = -RADIO; z <= RADIO; z++)
-            if (x * x + y * y + z * z <= (RADIO + 0.3) ** 2) v.add(`${x},${y + CENTRO_Y},${z}`);
-      return v;
-    }
-
-    function crearPata(lado) {
-      const v = new Set();
-      const px = lado * SEPARACION;
-      // Columna redondeada (3x3 sin las esquinas) desde el piso hasta dentro de la pelota
-      for (let y = 0; y <= CADERA_Y + 1; y++)
-        for (let dx = -1; dx <= 1; dx++)
-          for (let dz = -1; dz <= 1; dz++) {
-            if (dx && dz) continue;
-            v.add(`${px + dx},${y},${dz}`);
-          }
-      // Piecito: un poco más largo hacia adelante
-      for (const dx of [-1, 0, 1]) v.add(`${px + dx},0,2`);
-      v.add(`${px},1,2`);
-      return v;
-    }
-
-    // Convierte cubitos en caras visibles (las de adentro no se dibujan).
-    // Coordenadas como en CSS: x derecha, y hacia ABAJO, z hacia adelante.
-    // "centroCurva": si se da, la luz se calcula como en una esfera lisa (se ve más redonda)
-    function caras(forma, color, esconderDentroDe, centroCurva) {
-      const h = VOXEL / 2;
-      const lista = [];
-      const DIRS = [
-        [[1, 0, 0],  [1, 0, 0],  [0, 1, 0], [0, 0, 1]],
-        [[-1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, 0, 1]],
-        [[0, 1, 0],  [0, -1, 0], [1, 0, 0], [0, 0, 1]],
-        [[0, -1, 0], [0, 1, 0],  [1, 0, 0], [0, 0, 1]],
-        [[0, 0, 1],  [0, 0, 1],  [1, 0, 0], [0, 1, 0]],
-        [[0, 0, -1], [0, 0, -1], [1, 0, 0], [0, 1, 0]],
-      ];
-      for (const clave of forma) {
-        const [vx, vy, vz] = clave.split(',').map(Number);
-        const c = [vx * VOXEL, -(vy + 0.5) * VOXEL, vz * VOXEL];
-        for (const [[dx, dy, dz], n, u, w] of DIRS) {
-          const vecino = `${vx + dx},${vy + dy},${vz + dz}`;
-          if (forma.has(vecino) || (esconderDentroDe && esconderDentroDe.has(vecino))) continue;
-          const centro = c.map((v, i) => v + n[i] * h);
-          const esquinas = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) =>
-            centro.map((v, i) => v + (u[i] * a + w[i] * b) * h));
-          let luzN = n;
-          if (centroCurva) {
-            const d = centro.map((v, i) => v - centroCurva[i]);
-            const l = Math.hypot(...d);
-            luzN = d.map(v => v / l);
-          }
-          lista.push({ centro, normal: n, luzN, esquinas, rgb: aRGB(color) });
-        }
-      }
-      return lista;
-    }
 
     const aRGB = hex => { const n = parseInt(hex.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 
-    const pelota = crearPelota();
-    const PARTES = [
-      { caras: caras(pelota, BLANCO, null, [0, -(CENTRO_Y + 0.5) * VOXEL, 0]), giro: () => 0 },
-      { caras: caras(crearPata(-1), BLANCO, pelota), giro: () => anguloPaso },
-      { caras: caras(crearPata(1),  BLANCO, pelota), giro: () => -anguloPaso },
+    // Una caja lisa = 6 caras. Medidas con "y" hacia arriba desde el piso;
+    // se guardan como en CSS (y hacia abajo, z hacia adelante).
+    function caja(x0, x1, y0, y1, z0, z1, color) {
+      const Y0 = -y0, Y1 = -y1;
+      const v = (x, y, z) => [x, y, z];
+      const lados = [
+        { normal: [0, 0, 1],  esquinas: [v(x0, Y1, z1), v(x1, Y1, z1), v(x1, Y0, z1), v(x0, Y0, z1)] }, // frente
+        { normal: [0, 0, -1], esquinas: [v(x1, Y1, z0), v(x0, Y1, z0), v(x0, Y0, z0), v(x1, Y0, z0)] }, // atrás
+        { normal: [1, 0, 0],  esquinas: [v(x1, Y1, z1), v(x1, Y1, z0), v(x1, Y0, z0), v(x1, Y0, z1)] }, // derecha
+        { normal: [-1, 0, 0], esquinas: [v(x0, Y1, z0), v(x0, Y1, z1), v(x0, Y0, z1), v(x0, Y0, z0)] }, // izquierda
+        { normal: [0, -1, 0], esquinas: [v(x0, Y1, z0), v(x1, Y1, z0), v(x1, Y1, z1), v(x0, Y1, z1)] }, // arriba
+        { normal: [0, 1, 0],  esquinas: [v(x0, Y0, z1), v(x1, Y0, z1), v(x1, Y0, z0), v(x0, Y0, z0)] }, // abajo
+      ];
+      return lados.map(l => cara(l.normal, l.esquinas, color));
+    }
+
+    // Ponlo en true si quieres ver las líneas de los bordes de todo el cuerpo.
+    const MOSTRAR_BORDES = false;
+
+    // Una cara suelta. "bordes" dice qué lados se dibujan con línea
+    // (sirve para que dos caras juntas se vean como una sola, sin costura).
+    function cara(normal, esquinas, color, bordes = [true, true, true, true]) {
+      return {
+        normal, esquinas,
+        bordes: MOSTRAR_BORDES ? bordes : [false, false, false, false],
+        centro: [0, 1, 2].map(i => esquinas.reduce((s, e) => s + e[i], 0) / esquinas.length),
+        rgb: aRGB(color),
+      };
+    }
+
+    // El cuadrado que atraviesa la unión del cubo y el rectángulo.
+    // Solo se arma la parte que queda afuera (la de adentro no se vería).
+
+    function cuadradoCruzado() {
+      const union = PIE_ALTO + LADO;          // altura donde se juntan cubo y rectángulo
+      const x0 = -CRUCE_ANCHO / 2, x1 = CRUCE_ANCHO / 2;
+      const xt = TOPE_ANCHO / 2;              // costados del rectángulo
+      const ya = -(union - CRUCE / 2);        // abajo  (en CSS, y hacia abajo)
+      const ym = -union;                      // en la unión
+      const yb = -(union + CRUCE / 2);        // arriba
+      const yh = -(union + BRAZO_ALTO / 2);   // hasta aquí lo tapan los bloques de los costados
+      const zCubo = LADO / 2;                 // frente del cubo
+      const zTope = TOPE_FONDO / 2;           // frente del rectángulo
+      const zF = zCubo + CRUCE_SALE;          // frente del cuadrado
+      const zOjos = zTope + PARA_FONDO;       // frente de los ojos (encima de la nariz)
+      const v = (x, y, z) => [x, y, z];
+      const S = true, N = false;
+      const caras = [
+        cara([0, 0, 1],  [v(x0, yb, zF), v(x1, yb, zF), v(x1, ya, zF), v(x0, ya, zF)], BLANCO),       // frente
+        // arriba (solo la parte que no queda tapada por los ojos, si no se intercalan)
+        cara([0, -1, 0], [v(x0, yb, zOjos), v(x1, yb, zOjos), v(x1, yb, zF), v(x0, yb, zF)], BLANCO),
+        cara([0, 1, 0],  [v(x0, ya, zF), v(x1, ya, zF), v(x1, ya, zCubo), v(x0, ya, zCubo)], BLANCO), // abajo
+        // costado izquierdo (en dos partes, sin línea entre ellas)
+        cara([-1, 0, 0], [v(x0, yb, zCubo), v(x0, yb, zF), v(x0, ya, zF), v(x0, ya, zCubo)], BLANCO, [S, S, S, N]),
+        cara([-1, 0, 0], [v(x0, yb, zTope), v(x0, yb, zCubo), v(x0, yh, zCubo), v(x0, yh, zTope)], BLANCO, [S, N, S, S]),
+        // costado derecho
+        cara([1, 0, 0],  [v(x1, yb, zF), v(x1, yb, zCubo), v(x1, ya, zCubo), v(x1, ya, zF)], BLANCO, [S, N, S, S]),
+        cara([1, 0, 0],  [v(x1, yb, zCubo), v(x1, yb, zTope), v(x1, yh, zTope), v(x1, yh, zCubo)], BLANCO, [S, S, S, N]),
+        // parte de atrás que asoma a los lados del rectángulo
+        ...(x1 > xt ? [
+          cara([0, 0, -1], [v(x1, yb, zTope), v(xt, yb, zTope), v(xt, ym, zTope), v(x1, ym, zTope)], BLANCO),
+          cara([0, 0, -1], [v(-xt, yb, zTope), v(x0, yb, zTope), v(x0, ym, zTope), v(-xt, ym, zTope)], BLANCO),
+        ] : []),
+      ];
+      return caras;
+    }
+
+    // Bloque grueso y corto a un costado (lado = -1 izquierdo, 1 derecho).
+    // Sale de donde se juntan el cubo, el bloque que atraviesa y el rectángulo.
+    // Solo se arma la parte que queda afuera.
+    function brazo(lado) {
+      const caras = brazoCaras(lado);
+      // la boca va en el frente de este bloque (son dos caras de adelante: a las dos
+      // se les pone la misma línea, así se ve completa sin importar cuál se dibuje primero)
+      for (const c of caras) if (c.normal[2] === 1) c.marcas = marcasBoca(lado);
+      return caras;
+    }
+    function brazoCaras(lado) {
+      const union = PIE_ALTO + LADO;
+      const xa = CRUCE_ANCHO / 2;               // empieza en el costado del bloque que atraviesa
+      const xc = LADO / 2;                      // costado del cubo
+      const xb = LADO / 2 + BRAZO_SALE;         // punta
+      const ya = -(union - BRAZO_ALTO / 2), ym = -union, yb = -(union + BRAZO_ALTO / 2);
+      const z0 = BRAZO_Z - BRAZO_FONDO / 2, z1 = BRAZO_Z + BRAZO_FONDO / 2;
+      const v = (x, y, z) => [lado * x, y, z];
+      const S = true, N = false;
+      return [
+        cara([lado, 0, 0], [v(xb, yb, z0), v(xb, yb, z1), v(xb, ya, z1), v(xb, ya, z0)], BLANCO), // punta
+        cara([0, -1, 0],   [v(xa, yb, z0), v(xb, yb, z0), v(xb, yb, z1), v(xa, yb, z1)], BLANCO), // arriba
+        cara([0, 1, 0],    [v(xc, ya, z1), v(xb, ya, z1), v(xb, ya, z0), v(xc, ya, z0)], BLANCO), // abajo
+        // frente y atrás (en dos partes cada uno, sin línea entre ellas)
+        cara([0, 0, 1],  [v(xc, yb, z1), v(xb, yb, z1), v(xb, ya, z1), v(xc, ya, z1)], BLANCO, [S, S, S, N]),
+        cara([0, 0, 1],  [v(xa, yb, z1), v(xc, yb, z1), v(xc, ym, z1), v(xa, ym, z1)], BLANCO, [S, N, S, S]),
+        // parte metida en el torso: lleva el comienzo de la boca cuando la cabeza se mueve
+        cara([0, 0, 1],  [v(xa, ym, z1), v(xc, ym, z1), v(xc, ya, z1), v(xa, ya, z1)], BLANCO),
+        cara([0, 0, -1], [v(xc, yb, z0), v(xb, yb, z0), v(xb, ya, z0), v(xc, ya, z0)], BLANCO, [S, S, S, N]),
+        cara([0, 0, -1], [v(xa, yb, z0), v(xc, yb, z0), v(xc, ym, z0), v(xa, ym, z0)], BLANCO, [S, N, S, S]),
+      ];
+    }
+
+    // Placa apoyada sobre el bloque que sobresale y aplastada contra el frente del
+    // rectángulo alto. Las dos se tocan en el centro y sobresalen por los costados
+    // del rectángulo. lado = -1 izquierda, 1 derecha.
+    function paralelepipedo(lado) {
+      const base = PIE_ALTO + LADO + CRUCE / 2;   // parte de arriba del bloque que sobresale
+      const zT = TOPE_FONDO / 2;                  // frente del rectángulo alto
+      const xs = [0, lado * PARA_ANCHO];
+      const caras = caja(Math.min(...xs), Math.max(...xs), base, base + PARA_ALTO, zT, zT + PARA_FONDO, BLANCO)
+        // no se ven: la de atrás (pegada al rectángulo), la de abajo y la del centro (pegada a la otra placa)
+        .filter(c => c.normal[2] !== -1 && c.normal[1] !== 1 && c.normal[0] !== -lado);
+      // Sin líneas de borde, salvo la línea del medio donde se juntan las dos placas
+      // (al frente y arriba). En esas caras, el lado del centro es el 3 (derecha) o el 1 (izquierda).
+      const ladoCentro = lado === 1 ? 3 : 1;
+      // Pupila (garabato) en el frente de cada ojo
+      caras.find(c => c.normal[2] === 1).marcas = [
+        garabato(lado * PARA_ANCHO / 2, base + PARA_ALTO / 2, zT + PARA_FONDO, lado === 1 ? 3 : 7),
+      ];
+      for (const c of caras) {
+        const esFrente = c.normal[2] === 1, esArriba = c.normal[1] === -1;
+        c.bordes = [0, 1, 2, 3].map(i => (esFrente || esArriba) && i === ladoCentro);
+      }
+      // La parte que sobresale al costado del rectángulo se ve más gruesa hacia atrás,
+      // como si la placa se metiera dentro del rectángulo (lo de adentro no se dibuja).
+      const xt = TOPE_ANCHO / 2;
+      if (PARA_ANCHO > xt) {
+        const xs2 = [lado * xt, lado * PARA_ANCHO];
+        const costado = caja(Math.min(...xs2), Math.max(...xs2), base, base + PARA_ALTO, zT - PARA_ATRAS, zT, BLANCO)
+          // no se ven: la de adelante (pegada a la placa), la pegada al rectángulo y la de abajo
+          .filter(c => c.normal[2] !== 1 && c.normal[0] !== -lado && c.normal[1] !== 1);
+        for (const c of costado) c.bordes = [false, false, false, false];
+        caras.push(...costado);
+      }
+      return caras;
+    }
+
+    // Recorta un polígono y deja solo la parte donde lado(p) >= 0
+    // (se usa para que lo que queda de los brazos dentro del torso no se vea)
+    function recortar(pts, lado) {
+      const salida = [];
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i], b = pts[(i + 1) % pts.length];
+        const da = lado(a), db = lado(b);
+        if (da >= 0) salida.push(a);
+        if ((da >= 0) !== (db >= 0)) {
+          const t = da / (da - db);
+          salida.push(a.map((v, k) => v + (b[k] - v) * t));
+        }
+      }
+      return salida;
+    }
+
+    // ================= PARTES DEL CUERPO =================
+    // Pies: los rectángulos de abajo. Torso: el cubo principal. Brazos: los rectángulos
+    // a sus costados. Cabeza: todo lo de arriba del torso — nariz (el bloque que sobresale),
+    // boca (los bloques a cada lado de la nariz), ojos (las dos placas) y frente (lo de arriba).
+
+    // Ombligo: una X pequeña, algo estirada e imperfecta, en el frente del torso.
+    // Cada línea va de [x, altura] a [x, altura] (altura desde el piso).
+    const OMBLIGO = [
+      [[-15, 75], [13, 55]],
+      [[-12, 53], [12, 73]],
     ];
-    const ALTO = (CENTRO_Y + RADIO + 1) * VOXEL; // altura total
+    // Boca: líneas en zigzag /\/\/\ algo irregulares en el frente de los bloques a cada
+    // lado de la nariz. Cada punto es [distancia desde el centro, altura desde el piso].
+    const BOCA = {
+      // empieza donde el bloque toca la nariz (x = 60) y termina antes del borde (x = 118)
+      derecha:   [[61, 169], [69, 176], [77, 165], [85, 175], [93, 163], [101, 174], [108, 167]],
+      izquierda: [[61, 167], [69, 175], [78, 164], [86, 174], [94, 166], [101, 176], [108, 165]],
+    };
+    const OMBLIGO_GROSOR = 3.2;
+    const OMBLIGO_COLOR = '#2b2836';
 
-    // ================= Ajustes (cámbialos a gusto) =================
-    const SENSIBILIDAD    = 0.25;  // grados que gira la cámara por cada píxel que arrastras
-    const SUAVIDAD_CAM    = 14;    // más alto = la cámara responde más rápido
-    const SUAVIDAD_SEGUIR = 8;     // qué tan rápido la cámara alcanza al personaje
-    const VELOCIDAD       = 320;   // velocidad máxima (píxeles por segundo)
-    const ACELERACION     = 10;    // qué tan rápido arranca y frena
-    const BORDE           = 1500;  // no salir del piso
-    const GIRO_FLECHAS    = 100;   // grados por segundo que gira la cámara con ← →
-    const ALTURA_FLECHAS  = 60;    // grados por segundo que sube o baja la cámara con ↑ ↓
-    const GIRO_CUERPO     = 12;    // qué tan rápido se voltea hacia donde camina
-    const FUERZA_SALTO    = 650;   // velocidad hacia arriba al saltar (más = salta más alto)
-    const GRAVEDAD        = 1800;  // qué tan rápido cae
-    const PASO_MAX        = 30;    // cuánto mueven las patitas al caminar (grados)
-    const RITMO_PASO      = 0.045; // qué tan rápido dan los pasos
+    // Frente: tres puntitos negros formando las esquinas de un triángulo pequeño,
+    // al otro lado de la frente. Cada punto es [x, altura desde el piso].
+    const PUNTOS_FRENTE = [[-30, 336], [-43, 333], [-35, 323]];
+    const PUNTO_TAMAÑO = 5.5;
 
-    // Cámara que orbita alrededor del personaje y siempre lo mira.
-    const objetivo = { giro: -30, inclinacion: -15, distancia: 500 };
+    // Pupilas: garabatos circulares e irregulares en cada ojo.
+    const PUPILA_RADIO = 34;      // grande: cubre la mayor parte del ojo
+    const PUPILA_GROSOR = 2.6;
+
+    function frente() {
+      const caras = caja(-TOPE_ANCHO / 2, TOPE_ANCHO / 2, PIE_ALTO + LADO, PIE_ALTO + LADO + TOPE_ALTO,
+                         -TOPE_FONDO / 2, TOPE_FONDO / 2, BLANCO);
+      const z = TOPE_FONDO / 2;
+      caras.find(c => c.normal[2] === 1).marcas = PUNTOS_FRENTE.map(([x, y]) => ({
+        pts: [[x, -y, z], [x + 0.01, -y, z]],   // una línea mínima con punta redonda = un punto
+        grosor: PUNTO_TAMAÑO,
+      }));
+      return caras;
+    }
+
+    // Garabato: trazo a mano que va dando vueltas y cruzando por el centro, sin dejar
+    // un hueco blanco al medio. El radio salta mucho para que sea bien irregular.
+    function garabato(cx, cy, z, semilla) {
+      let r = semilla * 9301 + 49297;
+      const azar = () => ((r = (r * 9301 + 49297) % 233280) / 233280);
+      const pts = [];
+      let angulo = semilla;
+      let dx = 0, dy = 0;
+      for (let i = 0; i < 32; i++) {
+        angulo += 0.5 + azar() * 2.4;                       // saltos muy desiguales
+        // radio repartido en toda el área: hay líneas que cruzan cerca del centro
+        // (no queda hueco al medio) pero con espacios entre ellas
+        const radio = PUPILA_RADIO * (0.06 + 0.94 * Math.sqrt(azar()));
+        dx = dx * 0.6 + (azar() - 0.5) * 6;                // el centro tiembla
+        dy = dy * 0.6 + (azar() - 0.5) * 6;
+        const ancho = 0.8 + azar() * 0.25, alto = 0.95 + azar() * 0.3;   // el ojo es más alto que ancho
+        pts.push([cx + dx + Math.cos(angulo) * radio * ancho, -(cy + dy + Math.sin(angulo) * radio * alto), z]);
+      }
+      return { pts, grosor: PUPILA_GROSOR, centro: [cx, -cy] };
+    }
+
+    // Mechón de pelo: un solo mechón negro y delgado en el tope de la cabeza. Se arma con
+    // trozos que se van angostando y doblando. Se mueve según lo que haga el personaje
+    // (caminar, saltar, estar quieto), así que se vuelve a armar en cada cuadro.
+    const PELO_COLOR = '#2a2730';
+    const MECHON = [
+      // [ancho, alto, grosor, cuánto se dobla de por sí (grados)]
+      [14, 24, 9, 8],
+      [11, 21, 8, 20],
+      [8, 18, 6, 28],
+      [6, 15, 5, 34],
+      [3, 11, 3, 36],
+    ];
+    const ALTO_CABEZA = PIE_ALTO + LADO + TOPE_ALTO;   // el mechón sale de aquí hacia arriba
+
+    // curva: cuánto más (o menos) se enrula; atras: cuánto se inclina hacia atrás (grados)
+    function mechon(curva, atras) {
+      const caras = [];
+      let m = new DOMMatrix().translate(0, -ALTO_CABEZA, -6);
+      MECHON.forEach(([ancho, alto, grosor, doblar], i) => {
+        const k = (i + 1) / MECHON.length;              // la punta se mueve más que la base
+        m = m.rotate(atras * k * 0.6, 0, doblar * curva);
+        for (const c of caja(-ancho / 2, ancho / 2, 0, alto, -grosor / 2, grosor / 2, PELO_COLOR)) {
+          if (i === 0 && c.normal[1] === 1) continue;   // la base apoyada en la cabeza no se ve
+          const pts = c.esquinas.map(([x, y, z]) => { const q = m.transformPoint(new DOMPoint(x, y, z)); return [q.x, q.y, q.z]; });
+          const n = m.transformPoint(new DOMPoint(...c.normal, 0));
+          const l = Math.hypot(n.x, n.y, n.z);
+          caras.push({ pts, n: [n.x / l, n.y / l, n.z / l], rgb: c.rgb, bordes: [false, false, false, false], marcas: null });
+        }
+        m = m.translate(0, -alto * 0.85, 0);   // el siguiente trozo sale de la punta de este
+      });
+      return caras;
+    }
+
+    // Movimiento del mechón: un resorte que sigue a una meta, con un poco de rebote
+    const pelo = { curva: 1, vCurva: 0, atras: 0, vAtras: 0, t: 0 };
+    function moverPelo(dt) {
+      pelo.t += dt;
+      const rapidez = Math.min(Math.hypot(vel.x, vel.z) / VELOCIDAD, 1);
+      const subida = Math.max(-1, Math.min(1, velY / FUERZA_SALTO));
+      // Al caminar se va hacia atrás; al subir en un salto se dobla más; al caer se estira
+      const metaAtras = rapidez * 38 + Math.sin(pelo.t * 9) * 4 * rapidez;
+      const metaCurva = 1 + subida * 0.7 + Math.sin(pelo.t * 1.8) * 0.08 * (1 - rapidez);
+      const resorte = (x, v, meta) => {
+        const a = 70 * (meta - x) - 9 * v;
+        v += a * dt;
+        return [x + v * dt, v];
+      };
+      [pelo.atras, pelo.vAtras] = resorte(pelo.atras, pelo.vAtras, metaAtras);
+      [pelo.curva, pelo.vCurva] = resorte(pelo.curva, pelo.vCurva, metaCurva);
+    }
+
+    function marcasBoca(lado) {
+      const z = BRAZO_Z + BRAZO_FONDO / 2;   // frente del bloque de la boca
+      const puntos = lado === 1 ? BOCA.derecha : BOCA.izquierda;
+      return [puntos.map(([x, y]) => [lado * x, -y, z])];
+    }
+
+    function torso() {
+      const caras = caja(-LADO / 2, LADO / 2, PIE_ALTO, PIE_ALTO + LADO, -LADO / 2, LADO / 2, BLANCO);
+      const frente = caras.find(c => c.normal[2] === 1);
+      const z = LADO / 2;
+      frente.marcas = OMBLIGO.map(linea => linea.map(([x, y]) => [x, -y, z]));
+      // la boca pasa un poco por el frente del torso (cerca de la nariz), así que también va aquí
+      return caras;
+    }
+
+    // lado = -1 (izquierdo) o 1 (derecho)
+    function pie(lado) {
+      const adentro = lado * PIE_HUECO / 2;
+      const afuera  = lado * (LADO / 2 + ASOMA_LADO);
+      return caja(Math.min(adentro, afuera), Math.max(adentro, afuera), 0, PIE_ALTO,
+                  -LADO / 2 - ASOMA_ATRAS, LADO / 2 + ASOMA_FRENTE, BLANCO);
+    }
+
+    // Los pies se deslizan hacia adelante y atrás al caminar (sin levantarse, para no chocar con el cubo)
+    // ---- Las piezas, agrupadas según qué parte del cuerpo las mueve ----
+    // (los brazos y el mechón se arman en cada cuadro porque se doblan)
+    const GRUPOS = {
+      cuerpo: [torso()],
+      cabeza: [frente(), cuadradoCruzado(), paralelepipedo(-1), paralelepipedo(1), brazo(-1), brazo(1)],
+      pieIzq: [pie(-1)],
+      pieDer: [pie(1)],
+    };
+    const ALTO = PIE_ALTO + LADO + TOPE_ALTO;
+    const CUELLO = PIE_ALTO + LADO;          // la cabeza gira desde aquí
+    const ALTURA_OJOS = PIE_ALTO + LADO + 90;
+
+    // ---- Ajustes ----
+    const SENSIBILIDAD    = 0.25;
+    const SUAVIDAD_CAM    = 14;
+    const SUAVIDAD_SEGUIR = 8;
+    const VELOCIDAD       = 320;
+    const ACELERACION     = 10;
+    const CUARTO          = 1400;  // tamaño del cuarto (igual que --cuarto)
+    const ALTO_CUARTO     = 760;   // alto del cuarto (igual que --alto-cuarto)
+    const BORDE           = CUARTO / 2 - 130;  // no atravesar las paredes
+    const GIRO_FLECHAS    = 100;
+    const ALTURA_FLECHAS  = 60;
+    const GIRO_CUERPO     = 12;
+    const FUERZA_SALTO    = 650;
+    const GRAVEDAD        = 1800;
+    const PASO_MAX        = 12;
+    const RITMO_PASO      = 0.05;
+    const QUIETO_PARA_VIVIR = 4;   // segundos sin tocar nada para que haga su vida
+
+    const objetivo = { giro: -30, inclinacion: -15, distancia: 660 };
     const actual   = { ...objetivo };
     const LIMITES = {
-      inclinacion: [-70, -2],   // nunca por debajo del piso
-      distancia:   [150, 800],
+      inclinacion: [-70, -2],
+      distancia:   [200, 1100],
     };
     const limitar = (v, [min, max]) => Math.max(min, Math.min(max, v));
     const suavizar = (valor, meta, rapidez, dt) =>
       valor + (meta - valor) * (1 - Math.exp(-rapidez * dt));
+    const azarEntre = (a, b) => a + Math.random() * (b - a);
 
-    // ---- Estado del personaje ----
     const pos = { x: 0, z: 0 };
     const vel = { x: 0, z: 0 };
     const camPos = { x: 0, z: 0 };
-    let orientacion = 0;     // hacia dónde mira (en radianes)
+    let orientacion = 0;
     let altura = 0, velY = 0;
-    let fasePaso = 0, fuerzaPaso = 0, anguloPaso = 0;
+    let fasePaso = 0, fuerzaPaso = 0, desplazPaso = 0;
+    let reloj = 0, dtActual = 0, ultimaOrden = -99;
     const teclas = new Set();
+
+    // =====================================================================
+    //  LA MENTE: ánimo, acciones y reacciones
+    // =====================================================================
+    const mente = {
+      animo: 'curioso', tAnimo: 20,
+      accion: 'quieto', tAccion: 1.5,
+      meta: null,            // a dónde camina
+      mirarA: null,          // 'camara', 'lampara' o un punto del cuarto
+      giroForzado: null,     // hacia dónde gira el cuerpo cuando no camina
+      saltosPend: 0, tSalto: 0,
+      saltos: [], cansado: 0,
+      sentado: 0, susto: 0,
+      bloqueo: 0, huida: [0, 0], tPared: 0,
+      tParpadeo: 3, parpadeando: 0,
+    };
+
+    // Qué le dan ganas de hacer según su ánimo (más número = más seguido)
+    const GANAS = {
+      curioso:   { pasear: 3, camara: 2, mirarPunto: 1, brincar: 2, saludar: 1.5 },
+      tranquilo: { pasear: 2, lampara: 1.5, camara: 1, mirarPunto: 2 },
+      aburrido:  { sentarse: 3, pasear: 1, mirarPunto: 1 },
+    };
+    const RITMO_ANIMO = { curioso: 0.75, tranquilo: 0.42, aburrido: 0.3 };
+
+    function elegir(pesos) {
+      let total = 0;
+      for (const k in pesos) total += pesos[k];
+      let r = Math.random() * total;
+      for (const k in pesos) { r -= pesos[k]; if (r <= 0) return k; }
+      return Object.keys(pesos)[0];
+    }
+
+    function nuevaAccion() {
+      const a = elegir(GANAS[mente.animo]);
+      Object.assign(mente, { accion: a, meta: null, mirarA: null, giroForzado: null, saltosPend: 0 });
+      const s = CUARTO / 2;
+      switch (a) {
+        case 'pasear':
+          mente.meta = [azarEntre(-BORDE, BORDE) * 0.85, 0, azarEntre(-BORDE, BORDE) * 0.85];
+          mente.tAccion = 12;
+          break;
+        case 'camara':  mente.mirarA = 'camara';  mente.tAccion = azarEntre(2, 4.5); break;
+        case 'lampara': mente.mirarA = 'lampara'; mente.tAccion = azarEntre(2, 4); break;
+        case 'mirarPunto': {
+          const u = azarEntre(-s, s) * 0.8, h = -azarEntre(100, 520);
+          mente.mirarA = [[-s, h, u], [s, h, u], [u, h, -s], [u, h, s]][Math.floor(Math.random() * 4)];
+          mente.tAccion = azarEntre(2, 4);
+          break;
+        }
+        case 'brincar':
+          mente.saltosPend = 1 + Math.floor(Math.random() * 3);
+          mente.tSalto = 0.3;
+          mente.mirarA = 'camara';
+          mente.tAccion = 3.5;
+          break;
+        case 'saludar': mente.mirarA = 'camara'; mente.tAccion = 2.6; break;
+        case 'sentarse':
+          mente.meta = [Math.sign(Math.random() - 0.5) * BORDE * 0.9, 0, Math.sign(Math.random() - 0.5) * BORDE * 0.9];
+          mente.tAccion = 30;
+          break;
+      }
+    }
+
+    function cambiarAnimo() {
+      const antes = mente.animo;
+      mente.animo = elegir({ curioso: 2, tranquilo: 2, aburrido: 1.2 });
+      mente.tAnimo = azarEntre(15, 30);
+      if (antes !== mente.animo && mente.accion !== 'jugador') nuevaAccion();
+    }
+
+    // Cuando vive solo: decide hacia dónde caminar
+    function pensar(dt) {
+      mente.tAccion -= dt;
+      let dir = null, rapido = 0;
+      if (mente.meta) {
+        const dx = mente.meta[0] - pos.x, dz = mente.meta[2] - pos.z, d = Math.hypot(dx, dz);
+        if (d > 25) {
+          dir = [dx / d, dz / d];
+          rapido = RITMO_ANIMO[mente.animo] * Math.min(1, d / 120 + 0.3);
+        } else if (mente.accion === 'sentarse') {
+          // llegó a la esquina: se sienta mirando hacia el cuarto
+          Object.assign(mente, { accion: 'sentado', meta: null, tAccion: azarEntre(6, 11),
+                                 giroForzado: Math.atan2(-pos.x, -pos.z) });
+        } else mente.tAccion = 0;
+      }
+      if (mente.saltosPend > 0) {
+        mente.tSalto -= dt;
+        if (mente.tSalto <= 0 && altura === 0) {
+          brincar();
+          mente.saltosPend--;
+          mente.tSalto = azarEntre(0.15, 0.5);
+        }
+      }
+      if (mente.tAccion <= 0) nuevaAccion();
+      return { dir, rapido };
+    }
+
+    // Tocar una tecla le quita la vida propia (hasta que lo dejes de nuevo)
+    function tomarControl() {
+      ultimaOrden = reloj;
+      if (mente.accion !== 'jugador') {
+        Object.assign(mente, { accion: 'jugador', meta: null, mirarA: null, giroForzado: null, saltosPend: 0 });
+      }
+    }
+
+    function brincar() {
+      if (altura !== 0) return;
+      velY = FUERZA_SALTO * (mente.cansado > 0 ? 0.5 : 1);
+      // muchos saltos seguidos lo cansan
+      mente.saltos = mente.saltos.filter(t => reloj - t < 4);
+      mente.saltos.push(reloj);
+      if (mente.saltos.length >= 4) { mente.cansado = 7; mente.saltos = []; }
+    }
 
     const TECLAS_USADAS = [
       'KeyW', 'KeyA', 'KeyS', 'KeyD',                     // mover
@@ -256,7 +682,7 @@
     document.addEventListener('keydown', e => {
       if (e.code === 'Space') {
         e.preventDefault();
-        if (!e.repeat && altura === 0) velY = FUERZA_SALTO;
+        if (!e.repeat) { tomarControl(); brincar(); }
         return;
       }
       if (TECLAS_USADAS.includes(e.code)) {
@@ -273,36 +699,77 @@
       if (teclas.has('KeyS')) adelante -= 1;
       if (teclas.has('KeyD')) derecha  += 1;
       if (teclas.has('KeyA')) derecha  -= 1;
-      const largo = Math.hypot(adelante, derecha) || 1;  // en diagonal no va más rápido
-      adelante /= largo;
-      derecha  /= largo;
+      const manda = adelante !== 0 || derecha !== 0;
+      if (manda) tomarControl();
+      const lento = mente.cansado > 0 ? 0.45 : 1;
 
-      // "Adelante" es hacia donde mira la cámara
-      const g = actual.giro * Math.PI / 180;
-      const metaX = (Math.sin(g) * adelante + Math.cos(g) * derecha) * VELOCIDAD;
-      const metaZ = (-Math.cos(g) * adelante + Math.sin(g) * derecha) * VELOCIDAD;
+      let metaX = 0, metaZ = 0;
+      if (mente.bloqueo > 0) {
+        // se dio vuelta contra la pared: da unos pasitos hacia adentro
+        mente.bloqueo -= dt;
+        metaX = mente.huida[0] * VELOCIDAD * 0.3;
+        metaZ = mente.huida[1] * VELOCIDAD * 0.3;
+        if (mente.bloqueo <= 0) mente.giroForzado = null;
+      } else if (manda) {
+        const largo = Math.hypot(adelante, derecha);
+        adelante /= largo;
+        derecha  /= largo;
+        const g = actual.giro * Math.PI / 180;
+        metaX = (Math.sin(g) * adelante + Math.cos(g) * derecha) * VELOCIDAD * lento;
+        metaZ = (-Math.cos(g) * adelante + Math.sin(g) * derecha) * VELOCIDAD * lento;
+        // empujarlo contra una pared: se aburre de chocar y se da vuelta
+        const enX = Math.abs(pos.x) >= BORDE - 1 && Math.sign(metaX) === Math.sign(pos.x) && Math.abs(metaX) > 60;
+        const enZ = Math.abs(pos.z) >= BORDE - 1 && Math.sign(metaZ) === Math.sign(pos.z) && Math.abs(metaZ) > 60;
+        mente.tPared = enX || enZ ? mente.tPared + dt : 0;
+        if (mente.tPared > 0.45) {
+          const hx = enX ? -Math.sign(pos.x) : 0, hz = enZ ? -Math.sign(pos.z) : 0, l = Math.hypot(hx, hz);
+          Object.assign(mente, { tPared: 0, bloqueo: 0.9, huida: [hx / l, hz / l], giroForzado: Math.atan2(hx, hz) });
+          if (altura === 0) velY = FUERZA_SALTO * 0.35;
+        }
+      } else if (reloj - ultimaOrden > QUIETO_PARA_VIVIR) {
+        if (mente.accion === 'jugador') nuevaAccion();
+        const { dir, rapido } = pensar(dt);
+        if (dir) {
+          metaX = dir[0] * VELOCIDAD * rapido * lento;
+          metaZ = dir[1] * VELOCIDAD * rapido * lento;
+        }
+      }
       vel.x = suavizar(vel.x, metaX, ACELERACION, dt);
       vel.z = suavizar(vel.z, metaZ, ACELERACION, dt);
 
       const rapidez = Math.hypot(vel.x, vel.z);
-      // Se voltea hacia donde camina, por el lado más corto
-      if (rapidez > 20) {
-        let dif = Math.atan2(vel.x, vel.z) - orientacion;
+      let metaGiro = null;
+      if (mente.giroForzado !== null) metaGiro = mente.giroForzado;
+      else if (rapidez > 20) metaGiro = Math.atan2(vel.x, vel.z);
+      if (metaGiro !== null) {
+        let dif = metaGiro - orientacion;
         dif = Math.atan2(Math.sin(dif), Math.cos(dif));
-        orientacion += dif * (1 - Math.exp(-GIRO_CUERPO * dt));
+        orientacion += dif * (1 - Math.exp(-GIRO_CUERPO * 0.6 * dt));
       }
 
       const antesX = pos.x, antesZ = pos.z;
       pos.x = limitar(pos.x + vel.x * dt, [-BORDE, BORDE]);
       pos.z = limitar(pos.z + vel.z * dt, [-BORDE, BORDE]);
-
-      // Patitas: dan pasos según lo que avanza; al detenerse vuelven a su lugar
       if (altura === 0) fasePaso += Math.hypot(pos.x - antesX, pos.z - antesZ) * RITMO_PASO;
       fuerzaPaso = suavizar(fuerzaPaso, rapidez > 30 && altura === 0 ? 1 : 0, 10, dt);
-      anguloPaso = Math.sin(fasePaso) * PASO_MAX * fuerzaPaso;
+      desplazPaso = Math.sin(fasePaso) * PASO_MAX * fuerzaPaso;
 
       camPos.x = suavizar(camPos.x, pos.x, SUAVIDAD_SEGUIR, dt);
       camPos.z = suavizar(camPos.z, pos.z, SUAVIDAD_SEGUIR, dt);
+    }
+
+    // Lo que siente en cada momento (cansancio, susto, sentarse, parpadeo, ánimo)
+    function sentir(dt) {
+      mente.tAnimo -= dt;
+      if (mente.tAnimo <= 0) cambiarAnimo();
+      mente.cansado = Math.max(0, mente.cansado - dt);
+      mente.susto = suavizar(mente.susto, actual.distancia < 340 ? 1 : 0, 6, dt);
+      mente.sentado = suavizar(mente.sentado, mente.accion === 'sentado' ? 1 : 0, 4, dt);
+      mente.tParpadeo -= dt;
+      if (mente.tParpadeo <= 0) { mente.parpadeando = 0.15; mente.tParpadeo = azarEntre(2, 5.5); }
+      mente.parpadeando = Math.max(0, mente.parpadeando - dt);
+      const texto = mente.cansado > 0 ? 'cansado' : mente.susto > 0.5 ? 'sorprendido' : mente.animo;
+      if (etiquetaAnimo.textContent !== texto) etiquetaAnimo.textContent = texto;
     }
 
     function moverCamaraConFlechas(dt) {
@@ -320,82 +787,373 @@
       if (altura <= 0) { altura = 0; velY = 0; }
     }
 
-    // ---- Dibujar el personaje en el canvas con la misma cámara que la escena ----
+    // =====================================================================
+    //  DIBUJO del personaje en el canvas
+    // =====================================================================
     const lienzo = document.getElementById('pelota');
     const ctx = lienzo.getContext('2d');
+    const etiquetaAnimo = document.querySelector('.animo');
     const PERSPECTIVA = 900; // igual que "perspective" del body
+    const GROSOR_BORDE = 2.5;
+    const COLOR_BORDE = '#111';
+    const capa = document.createElement('canvas'), cctx = capa.getContext('2d');
+    const negra = document.createElement('canvas'), nctx = negra.getContext('2d');
 
     function ajustarLienzo() {
       const r = devicePixelRatio || 1;
-      lienzo.width = innerWidth * r;
-      lienzo.height = innerHeight * r;
-      ctx.setTransform(r, 0, 0, r, 0, 0);
+      for (const c of [lienzo, capa, negra]) {
+        c.width = innerWidth * r;
+        c.height = innerHeight * r;
+      }
+      cctx.setTransform(r, 0, 0, r, 0, 0);
     }
     addEventListener('resize', ajustarLienzo);
     ajustarLienzo();
 
+    const EPS = 0.01;
+    const restar = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    const punto = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    const aplicar = (m, [x, y, z]) => [
+      m.m11 * x + m.m21 * y + m.m31 * z + m.m41,
+      m.m12 * x + m.m22 * y + m.m32 * z + m.m42,
+      m.m13 * x + m.m23 * y + m.m33 * z + m.m43];
+    const girar = (m, [x, y, z]) => {
+      const v = [m.m11 * x + m.m21 * y + m.m31 * z, m.m12 * x + m.m22 * y + m.m32 * z, m.m13 * x + m.m23 * y + m.m33 * z];
+      const l = Math.hypot(...v);
+      return v.map(c => c / l);
+    };
+
+    // Lleva las caras de una pieza a su posición actual (y mueve las pupilas)
+    function colocar(caras, m, prio, lista, ojos) {
+      for (const c of caras) {
+        const pts = c.esquinas.map(q => aplicar(m, q));
+        const n = girar(m, c.normal);
+        const marcas = c.marcas ? c.marcas.map(l => {
+          if (Array.isArray(l)) return l.map(q => aplicar(m, q));
+          let ps = l.pts;
+          if (l.centro && ojos) {
+            const cy = l.centro[1];
+            ps = ps.map(([x, y, z]) => [x + ojos.x, cy + (y - cy) * ojos.abiertos + ojos.y, z]);
+          }
+          return { pts: ps.map(q => aplicar(m, q)), grosor: l.grosor };
+        }) : null;
+        lista.push({ pts, n, d: punto(n, pts[0]), rgb: c.rgb, bordes: c.bordes.slice(), marcas, prio });
+      }
+    }
+
+    // Brazo con su ángulo actual: "adelante" lo balancea, "abre" lo levanta hacia el lado
+    function brazoVivo(lado, adelante, abre, mCuerpo, lista) {
+      const g = LATERAL_GROSOR / 2;
+      const m = new DOMMatrix()
+        .translate(lado * LATERAL_ORIGEN_X, -LATERAL_ORIGEN_Y, 0)
+        .rotate(adelante, 0, 0)
+        .rotate(0, 0, -lado * (LATERAL_ANGULO + abre));
+      const caras = [];
+      for (const c of caja(-g, g, -LATERAL_LARGO, 0, -g, g, BLANCO)) {
+        const pts = recortar(c.esquinas.map(q => aplicar(m, q)), p => p[0] * lado - LADO / 2);
+        if (pts.length < 3) continue;
+        caras.push({ esquinas: pts, normal: girar(m, c.normal), rgb: c.rgb, bordes: pts.map(() => false) });
+      }
+      colocar(caras, mCuerpo, 1, lista);
+    }
+
+    function partir(p, n, d) {
+      const dist = p.pts.map(q => punto(n, q) - d);
+      const lado = dist.map(v => v > EPS ? 1 : v < -EPS ? -1 : 0);
+      if (lado.every(v => v >= 0)) return [p, null];
+      if (lado.every(v => v <= 0)) return [null, p];
+      const fa = [], fb = [], ba = [], bb = [];
+      const k = p.pts.length;
+      for (let i = 0; i < k; i++) {
+        const j = (i + 1) % k;
+        const a = p.pts[i], sa = lado[i], sb = lado[j], f = p.bordes[i];
+        if (sa >= 0) { fa.push(a); fb.push(sb >= 0 || sa > 0 ? f : false); }
+        if (sa <= 0) { ba.push(a); bb.push(sb <= 0 || sa < 0 ? f : false); }
+        if ((sa > 0 && sb < 0) || (sa < 0 && sb > 0)) {
+          const t = dist[i] / (dist[i] - dist[j]);
+          const m = a.map((v, c) => v + (p.pts[j][c] - v) * t);
+          fa.push(m); ba.push(m);
+          if (sa > 0) { fb.push(false); bb.push(f); } else { fb.push(f); bb.push(false); }
+        }
+      }
+      const hijo = (pts, bordes) => pts.length >= 3 ? { ...p, pts, bordes } : null;
+      return [hijo(fa, fb), hijo(ba, bb)];
+    }
+
+    // Árbol BSP: ordena las caras de atrás hacia adelante sin errores.
+    // Como el cuerpo ahora se mueve, se arma de nuevo en cada cuadro.
+    function armarBSP(lista) {
+      if (!lista.length) return null;
+      let mejor = 0, menos = Infinity;
+      const salto = Math.max(1, Math.floor(lista.length / 8));
+      for (let i = 0; i < lista.length && menos > 0; i += salto) {
+        const cand = lista[i];
+        let cortes = 0;
+        for (const q of lista) {
+          if (q === cand) continue;
+          let mas = false, menosLado = false;
+          for (const v of q.pts) { const s = punto(cand.n, v) - cand.d; if (s > EPS) mas = true; else if (s < -EPS) menosLado = true; }
+          if (mas && menosLado) cortes++;
+        }
+        if (cortes < menos) { menos = cortes; mejor = i; }
+      }
+      const corte = lista[mejor];
+      const nodo = { n: corte.n, d: corte.d, aqui: [corte], adelante: [], atras: [] };
+      for (const q of lista) {
+        if (q === corte) continue;
+        const dist = q.pts.map(v => punto(corte.n, v) - corte.d);
+        if (dist.every(v => Math.abs(v) <= EPS)) { nodo.aqui.push(q); continue; }
+        const [f, b] = partir(q, corte.n, corte.d);
+        if (f) nodo.adelante.push(f);
+        if (b) nodo.atras.push(b);
+      }
+      nodo.aqui.sort((a, b) => a.prio - b.prio);   // lo que va encima del torso se pinta después
+      nodo.adelante = armarBSP(nodo.adelante);
+      nodo.atras = armarBSP(nodo.atras);
+      return nodo;
+    }
+    function recorrer(nodo, ojo, salida) {
+      if (!nodo) return;
+      const delante = punto(nodo.n, ojo) - nodo.d > 0;
+      recorrer(delante ? nodo.atras : nodo.adelante, ojo, salida);
+      for (const p of nodo.aqui) if (delante === (punto(p.n, nodo.n) > 0)) salida.push(p);
+      recorrer(delante ? nodo.adelante : nodo.atras, ojo, salida);
+    }
+
+    // ---- Iluminación del cuarto ----
+    const LUZ_POS = [0, -(ALTO_CUARTO - 40), 0];       // la lámpara, en el centro del techo
+    const LUZ_COLOR = [1.0, 0.86, 0.66];               // cálida
+    const AMBIENTE_COLOR = [0.93, 0.90, 0.92];         // luz de rebote
+    const AMBIENTE = 0.84, DIRECTA = 0.6, ALCANCE = 900;
+    function iluminar(rgb, n, p) {
+      const l = [LUZ_POS[0] - p[0], LUZ_POS[1] - p[1], LUZ_POS[2] - p[2]];
+      const d = Math.hypot(...l);
+      const llega = Math.max(0, (n[0] * l[0] + n[1] * l[1] + n[2] * l[2]) / d);   // qué tanto mira a la luz
+      const apaga = 1 / (1 + (d / ALCANCE) ** 2);                                 // más lejos, menos luz
+      const brillo = AMBIENTE + DIRECTA * llega * apaga * 1.6;
+      const c = rgb.map((v, i) => Math.min(255, v * (AMBIENTE * AMBIENTE_COLOR[i] + DIRECTA * llega * apaga * 1.6 * LUZ_COLOR[i])) | 0);
+      return { brillo, css: `rgb(${c[0]},${c[1]},${c[2]})` };
+    }
+
+    // =====================================================================
+    //  LA POSE: cabeza, brazos, respiración, sentarse...
+    // =====================================================================
+    const cabeza = { giro: 0, inclina: 0, ladeo: 0 };
+    const brazos = { [-1]: { adelante: 0, abre: 0 }, [1]: { adelante: 0, abre: 0 } };
+    const pupila = { x: 0, y: 0 };
+    let cuerpoY = 0, enElAire = 0;
+    const GRADOS = 180 / Math.PI;
+
+    function calcularPose(dt, enMundo, ojo) {
+      const aLocal = p => { const q = enMundo.inverse().transformPoint(new DOMPoint(...p)); return [q.x, q.y, q.z]; };
+      const rapidez = Math.hypot(vel.x, vel.z) / VELOCIDAD;
+      const cansado = mente.cansado > 0;
+
+      // ¿A qué mira?
+      let mirarA = mente.mirarA;
+      if (mente.accion === 'jugador' && rapidez < 0.1 && reloj - ultimaOrden > 1.5) mirarA = 'camara';
+      if (mente.susto > 0.5) mirarA = 'camara';
+      const blanco = mirarA === 'camara' ? ojo
+                   : mirarA === 'lampara' ? aLocal(LUZ_POS)
+                   : Array.isArray(mirarA) ? aLocal(mirarA) : null;
+
+      let metaGiro, metaInclina, metaLadeo = 0, quiereGiro = 0, quiereInclina = 0;
+      if (blanco) {
+        const dx = blanco[0], dy = blanco[1] + ALTURA_OJOS, dz = blanco[2];
+        quiereGiro = Math.atan2(dx, dz) * GRADOS;
+        quiereInclina = Math.atan2(-dy, Math.hypot(dx, dz)) * GRADOS;
+        metaGiro = limitar(quiereGiro, [-55, 55]);
+        metaInclina = limitar(quiereInclina, [-20, 28]);
+        // si queda muy atrás, gira todo el cuerpo
+        if (Math.abs(quiereGiro) > 70 && mente.accion !== 'jugador' && mente.accion !== 'sentado' && rapidez < 0.2)
+          mente.giroForzado = orientacion + quiereGiro / GRADOS;
+        if (mente.animo === 'curioso') metaLadeo += Math.sin(reloj * 0.9) * 7;   // ladea la cabeza, curioso
+      } else {
+        // mira a su alrededor sin rumbo
+        metaGiro = Math.sin(reloj * 0.7) * 12 + Math.sin(reloj * 1.9) * 4;
+        metaInclina = Math.sin(reloj * 0.5) * 4 - rapidez * 4;
+        quiereGiro = metaGiro + Math.sin(reloj * 1.3) * 15;
+        quiereInclina = metaInclina;
+      }
+      if (mente.animo === 'aburrido' && !blanco) metaInclina -= 8;
+      metaInclina -= mente.sentado * 10;
+      if (cansado) { metaInclina -= 12; metaLadeo += 7; }
+      if (mente.accion === 'saludar') metaLadeo += 9;
+      metaInclina += mente.susto * 6;
+
+      cabeza.giro    = suavizar(cabeza.giro, metaGiro, 6, dt);
+      cabeza.inclina = suavizar(cabeza.inclina, metaInclina, 6, dt);
+      cabeza.ladeo   = suavizar(cabeza.ladeo, metaLadeo, 5, dt);
+
+      // Pupilas: siguen lo que mira, y parpadea
+      pupila.x = suavizar(pupila.x, limitar((quiereGiro - cabeza.giro) / 25, [-1, 1]) * 8, 12, dt);
+      pupila.y = suavizar(pupila.y, -limitar((quiereInclina - cabeza.inclina) / 25, [-1, 1]) * 6, 12, dt);
+      const abiertos = mente.parpadeando > 0 ? 0.12 : cansado ? 0.6 : 1;
+
+      // Respiración y pasos
+      const ritmo = cansado ? 4.4 : mente.animo === 'aburrido' ? 1.4 : 2.1;
+      const hondo = cansado ? 3.5 : mente.animo === 'aburrido' ? 2.6 : 1.8;
+      const resp = Math.sin(reloj * ritmo);
+      cuerpoY = -resp * hondo * (1 - fuerzaPaso)
+              - Math.abs(Math.cos(fasePaso)) * 4 * fuerzaPaso
+              + mente.sentado * 24;
+
+      // Brazos
+      enElAire = suavizar(enElAire, altura > 0 ? 1 : 0, 10, dt);
+      const balanceo = Math.sin(fasePaso) * 26 * fuerzaPaso;
+      for (const lado of [-1, 1]) {
+        let adelante = lado * balanceo + mente.sentado * 25 + (cansado ? 6 : 0);
+        let abre = resp * 2.5 + enElAire * 40 + mente.susto * 30 - (cansado ? 10 : 0) - mente.sentado * 12;
+        if (mente.accion === 'saludar' && lado === 1) { abre = 70 + Math.sin(reloj * 11) * 25; adelante = -10; }
+        brazos[lado].adelante = suavizar(brazos[lado].adelante, adelante, 12, dt);
+        brazos[lado].abre     = suavizar(brazos[lado].abre, abre, 12, dt);
+      }
+
+      // Matrices de cada parte
+      const mCuerpo = new DOMMatrix().translate(0, cuerpoY, 0);
+      const mCabeza = mCuerpo
+        .translate(0, -CUELLO, 0)
+        .rotate(0, cabeza.giro, 0)
+        .rotate(cabeza.inclina, 0, 0)
+        .rotate(0, 0, cabeza.ladeo)
+        .translate(0, CUELLO, 0);
+      const avance = mente.sentado * 20;
+      return {
+        mCuerpo, mCabeza,
+        mPieIzq: new DOMMatrix().translate(0, 0, desplazPaso + avance),
+        mPieDer: new DOMMatrix().translate(0, 0, -desplazPaso + avance),
+        ojos: { x: pupila.x, y: pupila.y, abiertos },
+      };
+    }
+
+    let ojoAnterior = [0, -300, 600];
+
     function dibujarPersonaje() {
-      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      cctx.clearRect(0, 0, innerWidth, innerHeight);
       const camara = new DOMMatrix(mundo.style.transform);
       const enMundo = new DOMMatrix(jugador.style.transform)
         .multiply(new DOMMatrix(personaje.style.transform));
       const cx = innerWidth / 2, cy = innerHeight / 2;
-      const caderaY = -CADERA_Y * VOXEL;
+      const M = camara.multiply(enMundo);
+      const o = M.inverse().transformPoint(new DOMPoint(0, 0, PERSPECTIVA));
+      const ojo = [o.x / o.w, o.y / o.w, o.z / o.w];
+      ojoAnterior = ojo;
 
+      // Arma todas las caras en su pose actual
+      const pose = calcularPose(dtActual, enMundo, ojo);
       const lista = [];
-      for (const parte of PARTES) {
-        // Las patitas giran desde la cadera
-        const W = enMundo.translate(0, caderaY, 0).rotate(parte.giro(), 0, 0).translate(0, -caderaY, 0);
-        const { m11, m12, m13, m21, m22, m23, m31, m32, m33, m41, m42, m43 } = camara.multiply(W);
-        for (const cara of parte.caras) {
-          const [px, py, pz] = cara.centro;
-          const qx = m11 * px + m21 * py + m31 * pz + m41;
-          const qy = m12 * px + m22 * py + m32 * pz + m42;
-          const qz = m13 * px + m23 * py + m33 * pz + m43;
-          const [nx, ny, nz] = cara.normal;
-          const vx = m11 * nx + m21 * ny + m31 * nz;
-          const vy = m12 * nx + m22 * ny + m32 * nz;
-          const vz = m13 * nx + m23 * ny + m33 * nz;
-          if (vx * -qx + vy * -qy + vz * (PERSPECTIVA - qz) <= 0) continue; // mira hacia atrás
+      colocar(GRUPOS.cuerpo[0], pose.mCuerpo, 0, lista);
+      for (const caras of GRUPOS.cabeza) colocar(caras, pose.mCabeza, 1, lista, pose.ojos);
+      colocar(GRUPOS.pieIzq[0], pose.mPieIzq, 1, lista);
+      colocar(GRUPOS.pieDer[0], pose.mPieDer, 1, lista);
+      for (const lado of [-1, 1]) brazoVivo(lado, brazos[lado].adelante, brazos[lado].abre, pose.mCuerpo, lista);
+      const pelito = mechon(pelo.curva, pelo.atras)
+        .map(p => ({ esquinas: p.pts, normal: p.n, rgb: p.rgb, bordes: p.bordes }));
+      colocar(pelito, pose.mCabeza, 1, lista);
 
-          const pts = cara.esquinas.map(([x, y, z]) => {
-            const X = m11 * x + m21 * y + m31 * z + m41;
-            const Y = m12 * x + m22 * y + m32 * z + m42;
-            const Z = m13 * x + m23 * y + m33 * z + m43;
-            const f = PERSPECTIVA / (PERSPECTIVA - Z);
-            return [cx + X * f, cy + Y * f];
-          });
+      const orden = [];
+      recorrer(armarBSP(lista), ojo, orden);
 
-          // Luz desde arriba y un poco de lado (en el mundo, no gira con la cámara)
-          const [lx, ly, lz] = cara.luzN;
-          const wy = W.m12 * lx + W.m22 * ly + W.m32 * lz;
-          const wx = W.m11 * lx + W.m21 * ly + W.m31 * lz;
-          const luz = Math.max(0.6, Math.min(1, 0.8 - 0.2 * wy - 0.08 * wx));
-          const [r, g, b] = cara.rgb;
-          lista.push({ z: qz, pts, color: `rgb(${r * luz | 0},${g * luz | 0},${b * luz | 0})` });
+      const c2 = cctx;
+      c2.lineJoin = 'round';
+      const W = enMundo;
+      const proyectar = ([x, y, z]) => {
+        const X = M.m11 * x + M.m21 * y + M.m31 * z + M.m41;
+        const Y = M.m12 * x + M.m22 * y + M.m32 * z + M.m42;
+        const Z = M.m13 * x + M.m23 * y + M.m33 * z + M.m43;
+        const f = PERSPECTIVA / (PERSPECTIVA - Z);
+        return [cx + X * f, cy + Y * f];
+      };
+      for (const p of orden) {
+        const pts = p.pts.map(proyectar);
+
+        // Luz de la lámpara: degradado entre la esquina más iluminada y la más oscura
+        const n = girar(W, p.n);
+        const colores = p.pts.map(q => iluminar(p.rgb, n, aplicar(W, q)));
+        let iMax = 0, iMin = 0;
+        colores.forEach((c, i) => {
+          if (c.brillo > colores[iMax].brillo) iMax = i;
+          if (c.brillo < colores[iMin].brillo) iMin = i;
+        });
+        let relleno = colores[iMax].css;
+        if (iMax !== iMin && colores[iMax].brillo - colores[iMin].brillo > 0.004) {
+          const a = pts[iMax], b = pts[iMin];
+          relleno = c2.createLinearGradient(a[0], a[1], b[0], b[1]);
+          relleno.addColorStop(0, colores[iMax].css);
+          relleno.addColorStop(1, colores[iMin].css);
+        }
+
+        c2.beginPath();
+        c2.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 1; i < pts.length; i++) c2.lineTo(pts[i][0], pts[i][1]);
+        c2.closePath();
+        c2.fillStyle = relleno;
+        c2.fill();
+        c2.lineWidth = 1;
+        c2.strokeStyle = relleno;
+        c2.stroke();
+
+        // Bordes marcados (solo la línea entre los ojos)
+        if (p.bordes.some(Boolean)) {
+          c2.beginPath();
+          for (let i = 0; i < pts.length; i++) {
+            if (!p.bordes[i]) continue;
+            const a = pts[i], b = pts[(i + 1) % pts.length];
+            c2.moveTo(a[0], a[1]);
+            c2.lineTo(b[0], b[1]);
+          }
+          c2.lineWidth = 1;
+          c2.strokeStyle = 'rgba(30, 25, 50, 0.35)';
+          c2.stroke();
+        }
+
+        // Ombligo, boca, puntos y pupilas, recortados a la cara
+        if (p.marcas) {
+          c2.save();
+          c2.beginPath();
+          c2.moveTo(pts[0][0], pts[0][1]);
+          for (let i = 1; i < pts.length; i++) c2.lineTo(pts[i][0], pts[i][1]);
+          c2.closePath();
+          c2.clip();
+          c2.lineCap = 'round';
+          c2.strokeStyle = OMBLIGO_COLOR;
+          for (const l of p.marcas) {
+            const linea = (Array.isArray(l) ? l : l.pts).map(proyectar);
+            c2.lineWidth = Array.isArray(l) ? OMBLIGO_GROSOR : l.grosor;
+            c2.beginPath();
+            c2.moveTo(linea[0][0], linea[0][1]);
+            for (let i = 1; i < linea.length; i++) c2.lineTo(linea[i][0], linea[i][1]);
+            c2.stroke();
+          }
+          c2.restore();
         }
       }
 
-      lista.sort((a, b) => a.z - b.z); // primero lo más lejano
-      ctx.lineWidth = 1;
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(60, 50, 100, 0.08)';
-      for (const { pts, color } of lista) {
-        ctx.beginPath();
-        ctx.moveTo(pts[0][0], pts[0][1]);
-        ctx.lineTo(pts[1][0], pts[1][1]);
-        ctx.lineTo(pts[2][0], pts[2][1]);
-        ctx.lineTo(pts[3][0], pts[3][1]);
-        ctx.closePath();
-        ctx.fillStyle = color;
-        ctx.fill();
-        ctx.stroke();
+      // Contorno negro alrededor de toda la silueta
+      nctx.globalCompositeOperation = 'source-over';
+      nctx.clearRect(0, 0, negra.width, negra.height);
+      nctx.drawImage(capa, 0, 0);
+      nctx.globalCompositeOperation = 'source-in';
+      nctx.fillStyle = COLOR_BORDE;
+      nctx.fillRect(0, 0, negra.width, negra.height);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, lienzo.width, lienzo.height);
+      const g = GROSOR_BORDE * (devicePixelRatio || 1);
+      for (let k = 0; k < 16; k++) {
+        const a = k / 16 * Math.PI * 2;
+        ctx.drawImage(negra, Math.cos(a) * g, Math.sin(a) * g);
       }
+      ctx.drawImage(capa, 0, 0);
     }
 
+    let inclinaSusto = [0, 0];
     function dibujar() {
-      personaje.style.transform = `translateY(${-altura}px)`;
-      // La sombra queda en el piso: más chica y suave mientras más alto salta
+      // Si la cámara se le acerca mucho, se echa para atrás (lejos de la cámara)
+      const l = Math.hypot(ojoAnterior[0], ojoAnterior[2]) || 1;
+      const ang = mente.susto * 12;
+      inclinaSusto = [ojoAnterior[2] / l * ang, -ojoAnterior[0] / l * ang];
+      personaje.style.transform =
+        `translateY(${-altura}px) rotateX(${inclinaSusto[0]}deg) rotateZ(${inclinaSusto[1]}deg)`;
       const lejos = Math.min(altura / 200, 1);
       sombra.style.transform =
         `translateY(-1px) rotateX(90deg) scale(${1.2 - lejos * 0.5})`;
@@ -403,7 +1161,6 @@
 
       jugador.style.transform =
         `translate3d(${pos.x}px, 0, ${pos.z}px) rotateY(${orientacion}rad)`;
-      // Mover la cámara equivale a mover el mundo al revés frente a ella.
       mundo.style.transform =
         `translateZ(${-actual.distancia}px)` +
         ` rotateX(${actual.inclinacion}deg)` +
@@ -416,11 +1173,15 @@
     function animar(ahora) {
       const dt = Math.min((ahora - antes) / 1000, 0.05);
       antes = ahora;
+      reloj += dt;
+      dtActual = dt;
       moverCamaraConFlechas(dt);
       for (const k of ['giro', 'inclinacion', 'distancia'])
         actual[k] = suavizar(actual[k], objetivo[k], SUAVIDAD_CAM, dt);
+      sentir(dt);
       mover(dt);
       saltar(dt);
+      moverPelo(dt);
       dibujar();
       requestAnimationFrame(animar);
     }
